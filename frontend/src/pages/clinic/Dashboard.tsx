@@ -1,3 +1,5 @@
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
 import { useState } from 'react';
 import { Search, Bell, MoreHorizontal, CheckCircle2, AlertCircle, Stethoscope, BrainCircuit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -7,22 +9,38 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 
+// The fetch function
+const fetchQueue = async () => {
+  const response = await api.get('/queue');
+  return response.data;
+};
+
 export default function ClinicDashboard() {
   const [showModal, setShowModal] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<any>(null);
 
-  // Mock Data
+  // Use TanStack Query to fetch data
+  const { data: patients, isLoading, error } = useQuery({
+    queryKey: ['liveQueue'],
+    queryFn: fetchQueue,
+    refetchInterval: 5000, // Refresh every 5 seconds for the 'Live' feel
+  });
+
+  /* Mock Data // used during development before FastAPI integration
   const patients = [
     { time: '08:15', name: 'Thabo Mbeki', id: '920211...', score: 'High (8/10)', status: 'Waiting', urgent: true },
     { time: '08:30', name: 'Gogo Dlamini', id: '540105...', score: 'Medium (4/10)', status: 'In Review', urgent: false },
     { time: '08:45', name: 'Sarah Jones', id: '880523...', score: 'Low (1/10)', status: 'Checked In', urgent: false },
-  ];
+  ]; */
 
   const handleReview = (patient: any) => {
     setSelectedPatient(patient);
     setShowModal(true);
   };
 
+  if (isLoading) return <div className="p-6 text-xl text-teal-600">Loading Live Queue...</div>;
+  if (error) return <div className="p-6 text-xl text-red-600">Error loading queue: {error.message}</div>;
+  
   return (
     <div className="flex flex-col h-full bg-slate-50">
       {/* Topbar */}
@@ -55,11 +73,12 @@ export default function ClinicDashboard() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {patients.map((patient, i) => (
+              {/* Map over the fetched 'patients' data */}
+              {patients?.map((patient: any, i: number) => (
                 <TableRow key={i} className="cursor-pointer hover:bg-slate-50/50" onClick={() => handleReview(patient)}>
                   <TableCell className="font-medium">{patient.time}</TableCell>
                   <TableCell className="font-semibold text-slate-700">{patient.name}</TableCell>
-                  <TableCell className="text-slate-500 font-mono text-xs">{patient.id}</TableCell>
+                  <TableCell className="text-slate-500 font-mono text-xs">{patient.patient_id}</TableCell>
                   <TableCell>
                     <Badge variant={patient.urgent ? 'destructive' : 'secondary'} className={!patient.urgent ? 'bg-blue-50 text-blue-700' : ''}>
                       {patient.score}
