@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/lib/store';
 import PatientLayout from '@/layouts/PatientLayout';
@@ -6,10 +7,14 @@ import Login from '@/pages/Login';
 import PatientHome from '@/pages/patient/Home';
 import ClinicDashboard from '@/pages/clinic/Dashboard';
 
+
+const queryClient = new QueryClient(); // Initialize client
+
 function App() {
   const user = useAuthStore((state) => state.user);
 
   return (
+   <QueryClientProvider client={queryClient}> {/* WRAPPER 1 */}
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
@@ -30,6 +35,7 @@ function App() {
         </Route>
       </Routes>
     </BrowserRouter>
+   </QueryClientProvider> // WRAPPER 1
   );
 }
 

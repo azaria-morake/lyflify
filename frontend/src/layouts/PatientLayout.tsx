@@ -1,5 +1,5 @@
 import { Outlet, useLocation, Link } from 'react-router-dom';
-import { Home, MessageCircle, FileText, User } from 'lucide-react';
+import { MessageCircle, FileText, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function PatientLayout() {
