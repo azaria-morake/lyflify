@@ -1,3 +1,4 @@
+import TriageChat from '@/pages/patient/TriageChat';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/lib/store';
@@ -26,7 +27,11 @@ function App() {
         }>
           {/* Nested Routes */}
           {user?.role === 'PATIENT' && (
+          <>
             <Route index element={<PatientHome />} />
+            <Route path="triage" element={<TriageChat />} />
+            <Route path="records" element={<div>Medical Records</div>} />
+          </>
           )}
 
           {user?.role === 'PROVIDER' && (
