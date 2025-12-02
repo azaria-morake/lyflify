@@ -1,18 +1,23 @@
 import firebase_admin
 from firebase_admin import credentials, firestore
 import os
+import json
 
-# Initialize connection using the JSON key
-# In production (Render/Vercel), we will use ENV variables, but for local use JSON.
-cred_path = "serviceAccountKey.json"
+# Check for Env Var first (Cloud), then File (Local)
+firebase_creds = os.getenv("FIREBASE_CREDENTIALS")
 
-if os.path.exists(cred_path):
-    cred = credentials.Certificate(cred_path)
-    if not firebase_admin._apps:
+if not firebase_admin._apps:
+    if firebase_creds:
+        # Load from Env Var (Render)
+        cred_dict = json.loads(firebase_creds)
+        cred = credentials.Certificate(cred_dict)
         firebase_admin.initialize_app(cred)
-else:
-    # Fallback for when we deploy and use ENV vars later
-    print("Warning: serviceAccountKey.json not found.")
+    elif os.path.exists("serviceAccountKey.json"):
+        # Load from File (Localhost)
+        cred = credentials.Certificate("serviceAccountKey.json")
+        firebase_admin.initialize_app(cred)
+    else:
+        print("CRITICAL WARNING: No Firebase Credentials found.")
 
 db = firestore.client()
 
