@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.services.firebase import get_queue, seed_queue
+from app.routers import triage
 
 app = FastAPI(title="LyfLify API")
 
@@ -12,6 +13,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(triage.router, prefix="/triage", tags=["Triage"])
 
 @app.get("/")
 def read_root():
