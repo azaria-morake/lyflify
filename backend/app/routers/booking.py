@@ -1,61 +1,85 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from datetime import datetime, timedelta
-from firebase_admin import firestore
-from app.services.firebase import db, get_queue
+# Import the new functions we just created
+from app.services.firebase import add_to_queue, update_booking_in_db, delete_booking, get_queue
 
 router = APIRouter()
 
 class BookingRequest(BaseModel):
     patient_id: str
     patient_name: str
-    triage_score: str     # "Red", "Orange", "Green"
+    triage_score: int | str
     symptoms: str
+
+class StatusUpdateRequest(BaseModel):
+    patient_id: str
+    action: str # "approve" or "cancel"
 
 @router.post("/create")
 async def create_booking(request: BookingRequest):
-    # 1. Get current queue state
-    current_queue = get_queue()
-    queue_length = len(current_queue)
+    # 1. Logic to Standardize Score/Status
+    score_input = str(request.triage_score).lower()
     
-    # 2. Calculate Slot Time
-    now = datetime.now()
+    # Defaults
+    score_formatted = "Medium (5/10)"
+    is_urgent = False
     
-    if request.triage_score.lower() == "red":
-        # Emergency: Slot is NOW
-        slot_time = now.strftime("%H:%M")
-        status = "Emergency En Route"
+    if score_input in ["red", "10", "9"]:
+        score_formatted = "Critical (10/10)"
+        is_urgent = True
+    elif score_input in ["orange", "7", "8"]:
+        score_formatted = "High (8/10)"
         is_urgent = True
     else:
-        # Routine: Add to back of line (15 mins per person)
-        wait_minutes = queue_length * 15
-        # Round to nearest 5 mins for neatness
-        wait_minutes = 5 * round(wait_minutes/5)
-        # Minimum 15 mins travel time
-        if wait_minutes < 15: wait_minutes = 15
-        
-        calculated_time = now + timedelta(minutes=wait_minutes)
-        slot_time = calculated_time.strftime("%H:%M")
-        status = "Booked"
+        score_formatted = "Low (3/10)"
         is_urgent = False
 
-    # 3. Create the Record
+    # 2. Determine Initial Status
+    # Routine bookings go to "Pending" so the Doctor can approve them
+    status = "Emergency En Route" if is_urgent else "Pending Approval"
+    
+    # 3. Create the Data Object
     booking_data = {
+        "patient_name": request.patient_name,
         "patient_id": request.patient_id,
-        "name": request.patient_name,
-        "time": slot_time,
-        "score": request.triage_score, # "High (8/10)" or similar logic
+        "score": score_formatted,
         "status": status,
         "urgent": is_urgent,
         "symptoms": request.symptoms,
-        "created_at": firestore.SERVER_TIMESTAMP
+        "created_at": datetime.now().isoformat(),
+        # Default time is TBD until approved
+        "time": datetime.now().strftime("%H:%M") if is_urgent else "TBD" 
     }
+
+    # 4. Save to Firestore using our helper
+    add_to_queue(booking_data)
     
-    # 4. Save to Firestore (This updates the Doctor's Dashboard instantly)
-    db.collection('queue').add(booking_data)
-    
-    return {
-        "success": True,
-        "assigned_time": slot_time,
-        "message": f"Booking confirmed for {slot_time}"
-    }
+    return {"status": "success", "booking_status": status}
+
+@router.post("/update")
+async def update_booking_status(request: StatusUpdateRequest):
+    """
+    Handles Doctor Approvals and Patient Cancellations
+    """
+    if request.action == "approve":
+        # Calculate a mock slot time (e.g., +30 mins from now)
+        assigned_time = (datetime.now() + timedelta(minutes=30)).strftime("%H:%M")
+        
+        success = update_booking_in_db(request.patient_id, {
+            "status": "Confirmed",
+            "time": assigned_time
+        })
+        if not success:
+            raise HTTPException(status_code=404, detail="Patient not found")
+            
+        return {"status": "approved", "time": assigned_time}
+        
+    elif request.action == "cancel":
+        success = delete_booking(request.patient_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Patient not found")
+            
+        return {"status": "cancelled", "message": "Booking removed"}
+        
+    return {"status": "no_action"}
