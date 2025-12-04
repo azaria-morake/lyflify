@@ -1,72 +1,54 @@
 from fastapi import APIRouter
-from pydantic import BaseModel
 from datetime import datetime, timedelta
-from app.services.firebase import get_queue
+# Ensure we import update_booking_in_db to avoid NameError
+from app.services.firebase import get_queue, update_booking_in_db 
 
-"""
 router = APIRouter()
 
-class RouteRequest(BaseModel):
-    patient_location: str  # "Soweto, Zone 6"
-    transport_type: str    # "Taxi", "Walk", "Car"
-
-class RouteResponse(BaseModel):
-    estimated_start_time: str
-    queue_position: int
-    clinic_status: str     # "On Time", "Delayed", "Smooth"
-    traffic_note: str      # "Taxi rank is busy"
-
-@router.post("/calculate", response_model=RouteResponse)
-async def calculate_care_path(request: RouteRequest):
-    # 1. Get Live Queue Depth from Firebase
+# --- 1. THE DEMO GOD ENDPOINT (Simulate Delay) ---
+@router.post("/delay")
+async def simulate_clinic_delay():
+    """
+    DEMO FEATURE: Adds 15 minutes to all active appointments 
+    and sets status to 'Delayed'.
+    """
     queue = get_queue()
-    queue_length = len(queue)
+    count = 0
     
-    # 2. Define "Heartbeat" (Avg time per patient)
-    # In a real app, AI calculates this based on history.
-    # For Hackathon, we hardcode logic:
-    avg_consult_minutes = 15
+    for patient in queue:
+        # Only update patients who have a valid time (ignore TBD/Pending)
+        if patient.get("time") and ":" in patient.get("time"):
+            try:
+                # 1. Parse current time
+                current_time_str = patient["time"]
+                current_dt = datetime.strptime(current_time_str, "%H:%M")
+                
+                # 2. Add 15 Minutes
+                new_time = current_dt + timedelta(minutes=15)
+                new_time_str = new_time.strftime("%H:%M")
+                
+                # 3. Update Firestore
+                update_booking_in_db(patient["patient_id"], {
+                    "time": new_time_str, 
+                    "status": "Delayed" 
+                })
+                count += 1
+            except Exception as e:
+                print(f"Skipping {patient.get('patient_id')}: {e}")
+                continue
     
-    # 3. Calculate Delay
-    # If there are > 5 people, we are "Delayed"
-    clinic_status = "On Time"
-    if queue_length > 5:
-        clinic_status = "Delayed"
-        avg_consult_minutes = 20  # Slower when busy
-        
-    total_wait_minutes = queue_length * avg_consult_minutes
-    
-    # 4. Calculate "Best Arrival Time"
-    # We want them to arrive 15 mins before their turn
-    now = datetime.now()
-    arrival_time = now + timedelta(minutes=total_wait_minutes)
-    
-    # 5. Add "Travel Logic" (Mocked for now)
-    # If using Taxi, add 10 mins buffer for waiting at rank
-    traffic_note = "Traffic is flowing smoothly."
-    if request.transport_type == "Taxi":
-        traffic_note = "Allow +10 mins for taxi rank filling."
-    
-    return RouteResponse(
-        estimated_start_time=arrival_time.strftime("%H:%M"),
-        queue_position=queue_length + 1,
-        clinic_status=clinic_status,
-        traffic_note=traffic_note
-    )
-"""
+    return {"message": f"CRISIS MODE: Delayed {count} patients by 15 mins."}
 
-router = APIRouter()
-
+# --- 2. PATIENT STATUS READER ---
 @router.get("/status/{patient_id}")
 async def get_patient_journey(patient_id: str):
     queue = get_queue()
-    
-    # 1. Find all bookings for this user
     my_bookings = [p for p in queue if p["patient_id"] == patient_id]
     
-    # 2. Sort by time created (newest first)
-    # (Assuming simple sort for now, ideally parse dates)
-    my_bookings.reverse() 
+    # --- CRITICAL FIX START ---
+    # We convert 'created_at' to string to handle mixed types (Timestamp vs str) safely
+    my_bookings.sort(key=lambda x: str(x.get("created_at", "")), reverse=True)
+    # --- CRITICAL FIX END ---
     
     results = []
     
@@ -74,36 +56,35 @@ async def get_patient_journey(patient_id: str):
         status = entry.get("status", "Unknown")
         score = entry.get("score", "Standard")
         
-        # --- UI LOGIC ---
+        # Default
         color = "green"
         advice = "Please arrive on time."
+        display_time = entry.get("time", "--:--")
+
+        # --- LOGIC MAPPING ---
         
-        # Case A: Pending
-        if status == "Pending Approval":
+        # 1. Delayed (The new state)
+        if status == "Delayed":
+            color = "red" # Turns the UI Red
+            advice = "⚠ CLINIC DELAYED. We apologize for the wait."
+            # We already updated the time in the DB, so just show it
+        
+        elif status == "Pending Approval":
             color = "gray"
             advice = "Waiting for clinic to confirm availability."
             display_time = "Pending..."
             
-        # Case B: Emergency / Red
         elif entry.get("urgent") or "Critical" in score or status == "Emergency En Route":
             color = "red"
             advice = "Emergency Team Notified. Proceed immediately."
-            display_time = entry.get("time", "NOW")
             
-        # Case C: Confirmed / Booked
         elif status in ["Confirmed", "Booked"]:
             color = "teal"
             advice = "Booking confirmed. Bring your ID."
-            display_time = entry.get("time", "TBD")
             
-        # Case D: Waiting (In Queue)
         elif status == "Waiting":
             color = "orange"
             advice = "You are in the queue."
-            display_time = entry.get("time", "Soon")
-            
-        else:
-            display_time = entry.get("time", "--:--")
 
         results.append({
             "status": status,
@@ -112,7 +93,7 @@ async def get_patient_journey(patient_id: str):
             "advice": advice,
             "color_code": color,
             "ticket_score": score,
-            "queue_position": 0 # TODO: Calculate real position if needed
+            "queue_position": 0 
         })
 
     return results

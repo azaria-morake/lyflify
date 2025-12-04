@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useMemo } from 'react';
 import { Search, Bell, MoreHorizontal, CheckCircle2, AlertCircle, Stethoscope, BrainCircuit, Clock } from 'lucide-react';
 
-// Relative imports
+// FIX: Switched to relative imports to avoid alias resolution errors
 import api from '../../lib/api';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -34,6 +34,7 @@ const fetchQueue = async () => {
 };
 
 export default function ClinicDashboard() {
+  // --- 1. HOOK DECLARATIONS (Must be at the top) ---
   const [showModal, setShowModal] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<any>(null);
   const queryClient = useQueryClient();
@@ -50,21 +51,26 @@ export default function ClinicDashboard() {
 
   const approveMutation = useMutation({
     mutationFn: async (id: string) => {
-      // 2.3 FIX: Ensure we send the correct ID and action
       await api.post('/booking/update', { patient_id: id, action: "approve" });
     },
     onSuccess: () => {
       setShowModal(false);
-      // Force refresh to show updated status
       queryClient.invalidateQueries({ queryKey: ['liveQueue'] });
     }
   });
 
-  const handleReview = (patient: any) => {
-    setSelectedPatient(patient);
-    setShowModal(true);
-  };
+  // FIX: This hook is now unconditional and won't cause "Rendered more hooks" errors
+  const delayMutation = useMutation({
+    mutationFn: async () => {
+      await api.post('/navigator/delay');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['liveQueue'] });
+    }
+  });
+  // --------------------------------------------------
 
+  // --- 2. CONDITIONAL RENDERING ---
   if (isLoading) return <div className="p-6 text-xl text-teal-600 animate-pulse">Connecting to Live Queue...</div>;
   if (error) return <div className="p-6 text-xl text-red-600">Error loading queue: {error.message}</div>;
   
@@ -76,6 +82,19 @@ export default function ClinicDashboard() {
           AI Triage Queue
         </h2>
         <div className="flex items-center space-x-4">
+          
+          {/* --- THE DEMO GOD BUTTON --- */}
+          <Button 
+            variant="destructive" 
+            size="sm"
+            onClick={() => delayMutation.mutate()}
+            disabled={delayMutation.isPending}
+            className="shadow-md"
+          >
+            {delayMutation.isPending ? "Simulating..." : "⚠ Simulate Delay (+15m)"}
+          </Button>
+          {/* --------------------------- */}
+
           <div className="relative">
             <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
             <Input className="pl-9 w-64 bg-slate-50" placeholder="Search patient ID..." />
@@ -113,7 +132,6 @@ export default function ClinicDashboard() {
                     }`}
                     onClick={() => handleReview(patient)}
                   >
-                    {/* 2.1 FIX: Use fallback if fields are missing */}
                     <TableCell className="font-medium text-slate-500">{patient.time || "--:--"}</TableCell>
                     <TableCell className="font-semibold text-slate-700">{patient.name || "Unknown Patient"}</TableCell>
                     <TableCell className="text-slate-500 font-mono text-xs">{patient.patient_id}</TableCell>
@@ -220,7 +238,6 @@ export default function ClinicDashboard() {
           <DialogFooter className="p-4 border-t bg-slate-50">
             <Button variant="outline" onClick={() => setShowModal(false)}>Request Vitals</Button>
             
-            {/* 2.2 FIX: Use 'mutate' (not async call) and bind specific ID */}
             <Button 
               className="bg-teal-600 hover:bg-teal-700" 
               onClick={() => approveMutation.mutate(selectedPatient?.patient_id)}
