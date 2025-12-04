@@ -13,8 +13,10 @@ type Message = {
   text: string;
   sender: 'user' | 'bot';
   triageResult?: {
+    urgency_score: number;
     color_code: string;
     category: string;
+    ai_reasoning: string;
     recommended_action: string;
   };
 };
@@ -127,6 +129,11 @@ export default function TriageChat() {
                       <Badge variant="outline" className="bg-white uppercase text-xs font-bold">
                         {msg.triageResult.category}
                       </Badge>
+
+                      <div className="text-sm font-extrabold" style={{ color: msg.triageResult.color_code }}>
+                        SCORE: {msg.triageResult.urgency_score}/10
+                      </div>
+
                       {msg.triageResult.color_code === 'red' && <AlertCircle className="w-4 h-4 text-red-600" />}
                       {msg.triageResult.color_code === 'green' && <CheckCircle2 className="w-4 h-4 text-green-600" />}
                     </div>
