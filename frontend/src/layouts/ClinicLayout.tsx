@@ -1,10 +1,16 @@
-import { Outlet } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom'; // Added useNavigate
 import { LayoutDashboard, Users, Activity, LogOut } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 
 export default function ClinicLayout() {
   const logout = useAuthStore((state) => state.logout);
+  const navigate = useNavigate(); // Hook for redirection
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login'); // Force redirect
+  };
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -24,7 +30,7 @@ export default function ClinicLayout() {
         
         <div className="mt-auto p-6 border-t border-slate-800">
           <button 
-            onClick={logout} 
+            onClick={handleLogout} // Use the new handler
             className="flex items-center gap-3 text-sm font-medium text-red-400 hover:text-red-300 transition-colors w-full"
           >
             <LogOut size={18} /> Logout

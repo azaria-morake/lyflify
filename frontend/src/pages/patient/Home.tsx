@@ -1,8 +1,8 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useRef } from 'react';
-import { Activity, Clock, Bot, MapPin, AlertTriangle, UserRound, CalendarClock, Hourglass, Trash2, ChevronRight, ChevronLeft, ArrowRight, XCircle } from 'lucide-react';
+import { Activity, Clock, Bot, MapPin, AlertTriangle, UserRound, CalendarClock, Hourglass, Trash2, ChevronRight, ChevronLeft, ArrowRight, XCircle, LogOut } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-
+import { useAuthStore } from '@/lib/store';
 import api from '../../lib/api';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
@@ -16,6 +16,15 @@ const fetchCarePath = async () => {
 export default function PatientHome() {
   const queryClient = useQueryClient();
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // LOGOUT HOOKS
+  const logout = useAuthStore((state) => state.logout);
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   const { data: appointments, isLoading } = useQuery({
     queryKey: ['carePath'],
@@ -58,8 +67,16 @@ export default function PatientHome() {
             <h1 className="text-2xl font-bold text-slate-800">Sawubona, Gogo</h1>
             <p className="text-slate-500 text-sm">Welcome back to LyfLify</p>
           </div>
-          <div className="h-10 w-10 bg-teal-100 rounded-full flex items-center justify-center text-teal-800 font-bold border border-teal-200">
-            GD
+          
+          <div className="flex items-center gap-3">
+             {/* Logout Button */}
+             <Button variant="ghost" size="icon" onClick={handleLogout} className="text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full">
+               <LogOut className="w-5 h-5" />
+             </Button>
+
+             <div className="h-10 w-10 bg-teal-100 rounded-full flex items-center justify-center text-teal-800 font-bold border border-teal-200 shadow-sm">
+               GD
+             </div>
           </div>
         </div>
       </header>
