@@ -166,7 +166,7 @@ export default function ClinicDashboard() {
     setShowModal(true);
   };
   // --- 2. CONDITIONAL RENDERING ---
-  if (isLoading) return <div className="p-6 text-xl text-teal-600 animate-pulse">Connecting to Live Queue...</div>;
+  // if (isLoading) return <div className="p-6 text-xl text-teal-600 animate-pulse">Connecting to Live Queue...</div>;
   if (error) return <div className="p-6 text-xl text-red-600">Error loading queue: {error.message}</div>;
 
   // Mock notifications
@@ -296,64 +296,94 @@ export default function ClinicDashboard() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedPatients.map((patient: any, i: number) => {
-                const score = getScore(patient);
-                const isCritical = score >= 9;
-                
-                return (
-                  <TableRow 
-                    key={i} 
-                    className={`cursor-pointer transition-colors ${
-                      isCritical ? 'bg-red-50 hover:bg-red-100 border-l-4 border-l-red-500' : 'hover:bg-slate-50'
-                    }`}
-                    onClick={() => handleReview(patient)}
-                  >
-                    {/* Replaces: <TableCell className="font-medium text-slate-500">{patient.time || "--:--"}</TableCell> */}
-
-<TableCell>
-  <div className="flex flex-col">
-    <span className="font-medium text-slate-700">{patient.time || "--:--"}</span>
-    <span className="text-xs text-slate-400">
-      {getWaitTime(patient.created_at)}
-    </span>
-  </div>
-</TableCell>
-                    <TableCell className="font-semibold text-slate-700">{patient.name || patient.patient_name || "Unknown Patient"}</TableCell>
-                    <TableCell className="text-slate-500 font-mono text-xs">{patient.patient_id}</TableCell>
-                    <TableCell>
-                      <Badge 
-                        variant="outline" 
-                        className={`${
-                          score >= 9 ? 'bg-red-100 text-red-700 border-red-200' :
-                          score >= 6 ? 'bg-orange-100 text-orange-700 border-orange-200' :
-                          'bg-green-100 text-green-700 border-green-200'
-                        }`}
-                      >
-                        {patient.score || "N/A"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <span className={`h-2 w-2 rounded-full ${patient.urgent ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`}></span>
-                        <span className="text-xs font-medium uppercase text-slate-500">{patient.status}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={(e) => {
-                          e.stopPropagation(); // Don't trigger the main row click
-                          setConsultPatient(patient);
-                          setShowConsultModal(true);
-                        }}
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
+              
+              {/* --- 1. LOADING STATE (Skeleton) --- */}
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, index) => (
+                  <TableRow key={index} className="animate-pulse">
+                    <TableCell><div className="h-4 w-12 bg-slate-100 rounded" /></TableCell>
+                    <TableCell><div className="h-4 w-32 bg-slate-100 rounded" /></TableCell>
+                    <TableCell><div className="h-4 w-20 bg-slate-100 rounded" /></TableCell>
+                    <TableCell><div className="h-5 w-24 bg-slate-100 rounded-full" /></TableCell>
+                    <TableCell><div className="h-4 w-16 bg-slate-100 rounded" /></TableCell>
+                    <TableCell className="text-right"><div className="h-8 w-8 bg-slate-100 rounded-full ml-auto" /></TableCell>
                   </TableRow>
-                );
-              })}
+                ))
+              ) : sortedPatients.length === 0 ? (
+                
+                /* --- 2. EMPTY STATE --- */
+                <TableRow>
+                  <TableCell colSpan={6} className="h-24 text-center text-slate-500">
+                    No active patients in queue.
+                  </TableCell>
+                </TableRow>
+
+              ) : (
+                
+                /* --- 3. DATA STATE --- */
+                sortedPatients.map((patient: any, i: number) => {
+                  const score = getScore(patient);
+                  const isCritical = score >= 9;
+                  
+                  return (
+                    <TableRow 
+                      key={i} 
+                      className={`cursor-pointer transition-colors ${
+                        isCritical ? 'bg-red-50 hover:bg-red-100 border-l-4 border-l-red-500' : 'hover:bg-slate-50'
+                      }`}
+                      onClick={() => handleReview(patient)}
+                    >
+                      {/* WAIT TIME DISPLAY */}
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-medium text-slate-700">{patient.time || "--:--"}</span>
+                          <span className="text-xs text-slate-400">{getWaitTime(patient.created_at)}</span>
+                        </div>
+                      </TableCell>
+                      
+                      <TableCell className="font-semibold text-slate-700">
+                        {patient.name || patient.patient_name || "Unknown Patient"}
+                      </TableCell>
+                      
+                      <TableCell className="text-slate-500 font-mono text-xs">{patient.patient_id}</TableCell>
+                      
+                      <TableCell>
+                        <Badge 
+                          variant="outline" 
+                          className={`${
+                            score >= 9 ? 'bg-red-100 text-red-700 border-red-200' :
+                            score >= 6 ? 'bg-orange-100 text-orange-700 border-orange-200' :
+                            'bg-green-100 text-green-700 border-green-200'
+                          }`}
+                        >
+                          {patient.score || "N/A"}
+                        </Badge>
+                      </TableCell>
+                      
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          <span className={`h-2 w-2 rounded-full ${patient.urgent ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`}></span>
+                          <span className="text-xs font-medium uppercase text-slate-500">{patient.status}</span>
+                        </div>
+                      </TableCell>
+                      
+                      <TableCell className="text-right">
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation(); 
+                            setConsultPatient(patient);
+                            setShowConsultModal(true);
+                          }}
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
             </TableBody>
           </Table>
         </div>
