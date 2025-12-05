@@ -40,11 +40,13 @@ async def simulate_clinic_delay():
     return {"message": f"CRISIS MODE: Delayed {count} patients by 15 mins."}
 
 # --- 2. PATIENT STATUS READER ---
+
 @router.get("/status/{patient_id}")
 async def get_patient_journey(patient_id: str):
     queue = get_queue()
-    # Sort by created_at string safe logic
     my_bookings = [p for p in queue if p["patient_id"] == patient_id]
+    
+    # Sort safe logic
     my_bookings.sort(key=lambda x: str(x.get("created_at", "")), reverse=True)
     
     results = []
@@ -53,38 +55,34 @@ async def get_patient_journey(patient_id: str):
         status = entry.get("status", "Unknown")
         score = entry.get("score", "Standard")
         
+        # ... (keep existing color/advice logic) ...
         # Default
         color = "green"
         advice = "Please arrive on time."
         display_time = entry.get("time", "--:--")
 
-        # --- LOGIC MAPPING ---
-        
         if status == "Delayed":
             color = "red"
             advice = "⚠ CLINIC DELAYED. We apologize for the wait."
-        
-        # FIX 3: Specific text for Pending
         elif status == "Pending Approval":
             color = "gray"
             advice = "Pending approval. Please be patient."
             display_time = "--:--"
-            
         elif entry.get("urgent") or "Critical" in score or status == "Emergency En Route":
             color = "red"
             advice = "Emergency Team Notified. Proceed immediately."
-            # Urgent patients usually get a time immediately, or you can hide it
-            
-        # FIX 4: Specific text for Confirmed
         elif status in ["Confirmed", "Booked"]:
             color = "teal"
             advice = "Appointment set. Please read details and don't miss your next appointment."
-            
+        elif status == "Cancelled":
+            color = "gray"
+            advice = "This appointment has been cancelled."
         elif status == "Waiting":
             color = "orange"
             advice = "You are in the queue."
 
         results.append({
+            "id": entry.get("id"), # <--- CRITICAL FIX: Pass the Firestore Doc ID
             "status": status,
             "symptoms": entry.get("symptoms", "General Checkup"),
             "estimated_time": display_time,

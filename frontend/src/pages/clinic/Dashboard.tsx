@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useMemo } from 'react';
-import { Search, Bell, MoreHorizontal, CheckCircle2, AlertCircle, Stethoscope, BrainCircuit, Clock } from 'lucide-react';
+import { Search, Bell, MoreHorizontal, CheckCircle2, AlertCircle, Stethoscope, BrainCircuit, Clock, Trash2 } from 'lucide-react';
 
 // FIX: Switched to relative imports to avoid alias resolution errors
 import api from '../../lib/api';
@@ -96,6 +96,16 @@ export default function ClinicDashboard() {
     },
     onError: () => {
       setActionStatus('error'); // Show Error Message
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (docId: string) => {
+      await api.post('/booking/update', { doc_id: docId, action: "delete" });
+    },
+    onSuccess: () => {
+      setShowModal(false);
+      queryClient.invalidateQueries({ queryKey: ['liveQueue'] });
     }
   });
 
@@ -400,6 +410,17 @@ export default function ClinicDashboard() {
                 </div>
               </DialogHeader>
 
+              {/* WARNING BANNER FOR CANCELLED PATIENTS */}
+              {selectedPatient?.status === 'Cancelled' && (
+                <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-0">
+                  <p className="font-bold flex items-center">
+                    <AlertCircle className="w-4 h-4 mr-2" />
+                    Attention: Patient Cancelled
+                  </p>
+                  <p className="text-sm">This booking was cancelled by the patient. Do not approve unless they are physically present.</p>
+                </div>
+              )}
+
               <div className="flex flex-1 overflow-hidden h-[500px]">
                 <div className="w-1/2 p-6 border-r flex flex-col space-y-4">
                   <h4 className="font-semibold flex items-center text-slate-700"><Stethoscope className="w-4 h-4 mr-2" /> Doctor's Assessment</h4>
@@ -450,30 +471,46 @@ export default function ClinicDashboard() {
               </div>
 
               {/* --- ACTION BUTTONS --- */}
-              <DialogFooter className="p-4 border-t bg-slate-50">
-                {/* RESTORED: Request Vitals Button (Pre-Admit) */}
-                <Button 
-                  variant="outline" 
-                  onClick={() => vitalsMutation.mutate(selectedPatient?.id)}
-                  disabled={vitalsMutation.isPending}
-                >
-                  {vitalsMutation.isPending ? "Requesting..." : "Request Vitals"}
-                </Button>
+              <DialogFooter className="p-4 border-t bg-slate-50 flex justify-between sm:justify-between">
                 
-                {selectedPatient?.status === 'Confirmed' ? (
-                  <Button disabled className="bg-green-600 text-white opacity-100">
-                    <CheckCircle2 className="w-4 h-4 mr-2" /> Confirmed
-                  </Button>
-                ) : (
-                  <Button 
-                    className="bg-teal-600 hover:bg-teal-700" 
-                    onClick={() => approveMutation.mutate(selectedPatient?.id)}
-                    disabled={approveMutation.isPending}
-                  >
-                    {approveMutation.isPending ? "Confirming..." : 
-                     selectedPatient?.urgent ? "Approve Emergency Admit" : "Approve & Admit"}
-                  </Button>
-                )}
+                {/* LEFT SIDE: Secondary Actions */}
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={handleClose}>Close</Button>
+                  
+                  {/* Show Delete only if Cancelled */}
+                  {selectedPatient?.status === 'Cancelled' && (
+                    <Button 
+                      variant="destructive"
+                      onClick={() => deleteMutation.mutate(selectedPatient?.id)}
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      {deleteMutation.isPending ? "Removing..." : "Remove Record"}
+                    </Button>
+                  )}
+                </div>
+                
+                {/* RIGHT SIDE: Primary Action */}
+                <div>
+                  {selectedPatient?.status === 'Confirmed' ? (
+                    <Button disabled className="bg-green-600 text-white opacity-100">
+                      <CheckCircle2 className="w-4 h-4 mr-2" /> Confirmed
+                    </Button>
+                  ) : selectedPatient?.status === 'Cancelled' ? (
+                    <Button disabled variant="secondary" className="bg-slate-200 text-slate-500 cursor-not-allowed">
+                      🚫 Booking Cancelled
+                    </Button>
+                  ) : (
+                    <Button 
+                      className="bg-teal-600 hover:bg-teal-700" 
+                      onClick={() => approveMutation.mutate(selectedPatient?.id)}
+                      disabled={approveMutation.isPending}
+                    >
+                      {approveMutation.isPending ? "Confirming..." : 
+                       selectedPatient?.urgent ? "Approve Emergency Admit" : "Approve & Admit"}
+                    </Button>
+                  )}
+                </div>
               </DialogFooter>
             </>
           )}
