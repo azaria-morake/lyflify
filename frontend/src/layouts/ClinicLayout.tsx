@@ -2,7 +2,7 @@ import { Outlet, useNavigate } from 'react-router-dom'; // Added useNavigate
 import { LayoutDashboard, Users, Activity, LogOut } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
-import { Link, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 export default function ClinicLayout() {
   const logout = useAuthStore((state) => state.logout);

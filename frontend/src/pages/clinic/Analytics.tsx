@@ -1,12 +1,12 @@
-import { useState, useMemo, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useReactToPrint } from "react-to-print"; // <--- NEW IMPORT
+import { useState, useMemo, useRef, useEffect } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useReactToPrint } from "react-to-print"; 
 import { 
   Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Area, AreaChart, PieChart, Pie, Cell 
 } from "recharts";
 import { 
   Activity, Clock, Users, TrendingUp, AlertTriangle, ArrowRight, 
-  Calendar as CalendarIcon, Download, Sparkles, CheckCircle2, ChevronDown, ChevronUp 
+  Calendar as CalendarIcon, Download, Sparkles, CheckCircle2, ChevronDown, ChevronUp, Loader2
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -19,6 +19,13 @@ import api from "../../lib/api";
 // --- API FETCHERS ---
 const fetchAnalytics = async () => {
   const response = await api.get('/navigator/analytics');
+  return response.data;
+};
+
+// NEW: Real AI Fetcher
+const fetchAIInsights = async (metrics: any) => {
+  // Pass the metrics to the backend LLM service
+  const response = await api.post('/navigator/analytics/insights', { metrics });
   return response.data;
 };
 
@@ -64,7 +71,7 @@ const getIconProps = (type: string) => {
 // --- COMPONENT ---
 export default function ClinicAnalytics() {
   const [filterType, setFilterType] = useState<'all' | 'critical' | null>(null);
-  const [isInsightsOpen, setIsInsightsOpen] = useState(false); // <--- CHANGED: Default to Closed
+  const [isInsightsOpen, setIsInsightsOpen] = useState(true); // Open by default to show off AI
   
   // Ref for Printing
   const contentRef = useRef<HTMLDivElement>(null);
@@ -73,17 +80,33 @@ export default function ClinicAnalytics() {
   const { data: analytics, isLoading: loadingAnalytics } = useQuery({
     queryKey: ['clinicAnalytics'],
     queryFn: fetchAnalytics,
-    refetchInterval: 5000, 
+    refetchInterval: 10000, // Slowed down slightly to give AI breathing room
   });
 
-  // 2. Fetch Raw Queue (For Drill-down)
+  // 2. AI Mutation (Replaces the old useMemo)
+  const { 
+    data: aiInsights, 
+    mutate: generateInsights, 
+    isPending: loadingInsights 
+  } = useMutation({
+    mutationFn: fetchAIInsights,
+  });
+
+  // 3. Automatically trigger AI when analytics data arrives
+  useEffect(() => {
+    if (analytics?.metrics) {
+      generateInsights(analytics.metrics);
+    }
+  }, [analytics]);
+
+  // 4. Fetch Raw Queue (For Drill-down)
   const { data: queue } = useQuery({
     queryKey: ['liveQueue'],
     queryFn: fetchQueue,
     refetchInterval: 5000,
   });
 
-  // 3. Filter Logic
+  // 5. Filter Logic
   const filteredQueue = useMemo(() => {
     if (!queue || !filterType) return [];
     if (filterType === 'all') return queue;
@@ -100,41 +123,9 @@ export default function ClinicAnalytics() {
 
   // PRINT HANDLER
   const handlePrint = useReactToPrint({
-    contentRef: contentRef, // Pass the ref here
+    contentRef: contentRef, 
     documentTitle: `LyfLify_Report_${new Date().toISOString().split('T')[0]}`,
   });
-
-  // 4. Generate AI Insights based on Live Data
-  const aiInsights = useMemo(() => {
-    if (!analytics) return [];
-    const insights = [];
-    
-    // Efficiency Insight
-    const effMetric = analytics.metrics.find((m: any) => m.type === 'activity');
-    const effValue = effMetric ? parseInt(effMetric.value) : 100;
-    
-    if (effValue < 80) {
-      insights.push({ type: 'warning', text: "Efficiency has dropped below 80%. Consider opening an additional triage lane." });
-    } else {
-      insights.push({ type: 'success', text: "Clinic is operating at optimal efficiency. Queue flow is stable." });
-    }
-
-    // Critical Cases Insight
-    const critMetric = analytics.metrics.find((m: any) => m.type === 'alert');
-    const critValue = critMetric ? parseInt(critMetric.value) : 0;
-
-    if (critValue > 3) {
-      insights.push({ type: 'critical', text: `High volume of critical cases (${critValue}). Alert Trauma Unit for potential overflow.` });
-    }
-
-    // Disease Trends
-    const fluData = analytics.diagnosis_data.find((d: any) => d.name === 'High' || d.name === 'Critical');
-    if (fluData && fluData.value > 5) {
-      insights.push({ type: 'info', text: "Spike in high-priority respiratory symptoms detected. Ensure oxygen supply is checked." });
-    }
-
-    return insights;
-  }, [analytics]);
 
   return (
     <div className="flex flex-col h-full bg-slate-50">
@@ -170,7 +161,7 @@ export default function ClinicAnalytics() {
           </div>
         </div>
 
-        {/* --- 1. AI INSIGHTS (COLLAPSIBLE) --- */}
+        {/* --- 1. AI INSIGHTS (REAL) --- */}
         {!loadingAnalytics && (
           <Card className="border-teal-100 bg-teal-50/50 shadow-sm transition-all duration-300">
             <CardHeader className="pb-2 cursor-pointer" onClick={() => setIsInsightsOpen(!isInsightsOpen)}>
@@ -187,15 +178,27 @@ export default function ClinicAnalytics() {
             
             {/* Collapse Logic */}
             {isInsightsOpen && (
-              <CardContent className="space-y-3 pt-0 animate-in slide-in-from-top-2 duration-300">
-                {aiInsights.map((insight, i) => (
-                  <div key={i} className="flex items-start gap-3 bg-white p-3 rounded border border-teal-100/50 shadow-sm">
-                    <div className={`mt-0.5 ${insight.type === 'critical' || insight.type === 'warning' ? 'text-red-500' : 'text-teal-500'}`}>
-                      {insight.type === 'success' ? <CheckCircle2 className="w-4 h-4"/> : <AlertTriangle className="w-4 h-4"/>}
+              <CardContent className="pt-0 animate-in slide-in-from-top-2 duration-300">
+                {/* FIX: Added max-h and overflow to prevent infinite expansion */}
+                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                  {loadingInsights ? (
+                    <div className="flex items-center p-4 text-sm text-teal-600/80">
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Analyzing metrics...
                     </div>
-                    <p className="text-sm text-slate-700">{insight.text}</p>
-                  </div>
-                ))}
+                  ) : aiInsights && aiInsights.length > 0 ? (
+                    aiInsights.map((insight: any, i: number) => (
+                      <div key={i} className="flex items-start gap-3 bg-white p-3 rounded border border-teal-100/50 shadow-sm">
+                        <div className={`mt-0.5 ${insight.type === 'critical' || insight.type === 'warning' ? 'text-red-500' : 'text-teal-500'}`}>
+                          {insight.type === 'success' ? <CheckCircle2 className="w-4 h-4"/> : <AlertTriangle className="w-4 h-4"/>}
+                        </div>
+                        <p className="text-sm text-slate-700">{insight.text}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-4 text-xs text-slate-400 italic">No insights available yet.</div>
+                  )}
+                </div>
               </CardContent>
             )}
           </Card>

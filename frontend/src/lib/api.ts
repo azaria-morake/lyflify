@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { auth } from './firebase'; 
 
-// Uses the URL defined in .env.development
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const api = axios.create({
@@ -8,6 +9,22 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+});
+
+// --- NEW: REQUEST INTERCEPTOR ---
+// Before sending any request, grab the latest token from Firebase
+api.interceptors.request.use(async (config) => {
+  const user = auth.currentUser;
+  
+  if (user) {
+    // This gets the JWT token (and refreshes it if expired)
+    const token = await user.getIdToken();
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  
+  return config;
+}, (error) => {
+  return Promise.reject(error);
 });
 
 export default api;
