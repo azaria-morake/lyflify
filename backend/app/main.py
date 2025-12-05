@@ -1,4 +1,4 @@
-from app.routers import triage, navigator, booking, triage
+from app.routers import triage, navigator, booking, triage, records
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.services.firebase import get_queue, seed_queue
@@ -17,6 +17,7 @@ app.add_middleware(
 app.include_router(triage.router, prefix="/triage", tags=["Triage"])
 app.include_router(navigator.router, prefix="/navigator", tags=["Navigator"])
 app.include_router(booking.router, prefix="/booking", tags=["Booking"])
+app.include_router(records.router, prefix="/records", tags=["Records"])
 
 @app.get("/")
 def read_root():

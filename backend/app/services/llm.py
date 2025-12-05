@@ -56,3 +56,34 @@ def get_llama_assessment(user_message: str) -> str:
             "ai_reasoning": "AI Service Unavailable. Defaulting to caution.",
             "recommended_action": "Please see a receptionist."
         }
+    
+def explain_prescription(diagnosis: str, meds: list, notes: str) -> str:
+    """
+    Translates medical jargon into simple, empathetic English/Vernacular for patients.
+    """
+    system_prompt = (
+        "You are a helpful, empathetic medical assistant for a patient in a South African community clinic. "
+        "Your job is to explain complex medical terms in simple, easy-to-understand English. "
+        "1. Start with a warm greeting (e.g., 'Sawubona', 'Hello'). "
+        "2. Explain the diagnosis simply (what is wrong). "
+        "3. Explain the medication instructions clearly (e.g., translate 'TDS' to '3 times a day'). "
+        "4. Do NOT give new medical advice or change the prescription. Only explain what is provided."
+        "5. Keep it short (max 3-4 sentences)."
+    )
+    
+    user_content = f"Diagnosis: {diagnosis}\nMedications: {', '.join(meds)}\nDoctor's Notes: {notes}\n\nPlease explain this to the patient."
+
+    try:
+        completion = client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content}
+            ],
+            model="llama-3.1-8b-instant",
+            temperature=0.2, # Low creativity for accuracy
+            max_tokens=256
+        )
+        return completion.choices[0].message.content
+    except Exception as e:
+        print(f"LLM Error: {e}")
+        return "Sorry, I cannot explain this right now. Please ask the nurse."

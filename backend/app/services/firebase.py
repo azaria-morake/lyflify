@@ -73,3 +73,43 @@ def seed_queue(data):
     for item in data:
         collection.add(item)
     return True
+
+def get_patient_records(patient_id):
+    """Fetches medical history for a patient"""
+    # Sort by date descending (newest first)
+    docs = db.collection('records').where('patient_id', '==', patient_id).stream()
+    records = [{**doc.to_dict(), "id": doc.id} for doc in docs]
+    # Simple sort (assuming ISO date strings)
+    records.sort(key=lambda x: x.get('date', ''), reverse=True)
+    return records
+
+def seed_records(patient_id):
+    """Seeds dummy records for the demo user if none exist"""
+    records_ref = db.collection('records')
+    
+    # Demo Data
+    dummy_data = [
+        {
+            "patient_id": patient_id,
+            "date": "2024-12-05",
+            "doctor": "Dr. Nkosi",
+            "diagnosis": "Acute Bronchitis",
+            "meds": ["Amoxicillin 500mg (TDS)", "Paracetamol 500mg (PRN)"],
+            "notes": "Patient presents with wheezing and persistent cough. Chest clear on X-Ray.",
+            "type": "Consultation"
+        },
+        {
+            "patient_id": patient_id,
+            "date": "2024-11-12",
+            "doctor": "Sr. Zulu",
+            "diagnosis": "Hypertension (Routine)",
+            "meds": ["Amlodipine 5mg (Daily)"],
+            "notes": "BP 150/95. Dosage adjusted.",
+            "type": "Check-up"
+        }
+    ]
+    
+    for data in dummy_data:
+        records_ref.add(data)
+    
+    return True

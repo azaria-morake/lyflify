@@ -7,7 +7,7 @@ import ClinicLayout from '@/layouts/ClinicLayout';
 import Login from '@/pages/Login';
 import PatientHome from '@/pages/patient/Home';
 import ClinicDashboard from '@/pages/clinic/Dashboard';
-
+import PatientRecords from '@/pages/patient/Records';
 
 const queryClient = new QueryClient(); // Initialize client
 
@@ -30,7 +30,7 @@ function App() {
           <>
             <Route index element={<PatientHome />} />
             <Route path="triage" element={<TriageChat />} />
-            <Route path="records" element={<div>Medical Records</div>} />
+            <Route path="records" element={<PatientRecords />} />
           </>
           )}
 
