@@ -8,6 +8,7 @@ import Login from '@/pages/Login';
 import PatientHome from '@/pages/patient/Home';
 import ClinicDashboard from '@/pages/clinic/Dashboard';
 import PatientRecords from '@/pages/patient/Records';
+import ClinicAnalytics from '@/pages/clinic/Analytics';
 
 const queryClient = new QueryClient(); // Initialize client
 
@@ -35,7 +36,10 @@ function App() {
           )}
 
           {user?.role === 'PROVIDER' && (
-             <Route index element={<ClinicDashboard />} />
+             <>
+               <Route index element={<ClinicDashboard />} />
+               <Route path="analytics" element={<ClinicAnalytics />} />
+             </>
           )}
         </Route>
       </Routes>

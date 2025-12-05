@@ -2,6 +2,7 @@ import { Outlet, useNavigate } from 'react-router-dom'; // Added useNavigate
 import { LayoutDashboard, Users, Activity, LogOut } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
+import { Link, useLocation } from 'react-router-dom';
 
 export default function ClinicLayout() {
   const logout = useAuthStore((state) => state.logout);
@@ -22,9 +23,16 @@ export default function ClinicLayout() {
             <span className="font-bold text-xl tracking-tight">LyfLify</span>
           </div>
           <nav className="space-y-1">
-            <SidebarItem icon={<LayoutDashboard size={20} />} label="Live Queue" active />
+            <Link to="/">
+              <SidebarItem icon={<LayoutDashboard size={20} />} label="Live Queue" active={location.pathname === "/"} />
+            </Link>
+            
+            {/* "Patients" is a placeholder for now */}
             <SidebarItem icon={<Users size={20} />} label="Patients" />
-            <SidebarItem icon={<Activity size={20} />} label="Analytics" />
+            
+            <Link to="/analytics">
+              <SidebarItem icon={<Activity size={20} />} label="Analytics" active={location.pathname === "/analytics"} />
+            </Link>
           </nav>
         </div>
         
