@@ -43,12 +43,9 @@ async def simulate_clinic_delay():
 @router.get("/status/{patient_id}")
 async def get_patient_journey(patient_id: str):
     queue = get_queue()
+    # Sort by created_at string safe logic
     my_bookings = [p for p in queue if p["patient_id"] == patient_id]
-    
-    # --- CRITICAL FIX START ---
-    # We convert 'created_at' to string to handle mixed types (Timestamp vs str) safely
     my_bookings.sort(key=lambda x: str(x.get("created_at", "")), reverse=True)
-    # --- CRITICAL FIX END ---
     
     results = []
     
@@ -63,24 +60,25 @@ async def get_patient_journey(patient_id: str):
 
         # --- LOGIC MAPPING ---
         
-        # 1. Delayed (The new state)
         if status == "Delayed":
-            color = "red" # Turns the UI Red
+            color = "red"
             advice = "⚠ CLINIC DELAYED. We apologize for the wait."
-            # We already updated the time in the DB, so just show it
         
+        # FIX 3: Specific text for Pending
         elif status == "Pending Approval":
             color = "gray"
-            advice = "Waiting for clinic to confirm availability."
-            display_time = "Pending..."
+            advice = "Pending approval. Please be patient."
+            display_time = "--:--"
             
         elif entry.get("urgent") or "Critical" in score or status == "Emergency En Route":
             color = "red"
             advice = "Emergency Team Notified. Proceed immediately."
+            # Urgent patients usually get a time immediately, or you can hide it
             
+        # FIX 4: Specific text for Confirmed
         elif status in ["Confirmed", "Booked"]:
             color = "teal"
-            advice = "Booking confirmed. Bring your ID."
+            advice = "Appointment set. Please read details and don't miss your next appointment."
             
         elif status == "Waiting":
             color = "orange"

@@ -34,8 +34,19 @@ def get_queue():
 
 def add_to_queue(booking_data):
     """Adds a new patient to Firestore"""
-    db.collection('queue').add(booking_data)
-    return booking_data
+    # Fix: Return the ref so we know the ID if needed immediately (optional but good practice)
+    update_time, ref = db.collection('queue').add(booking_data)
+    return {**booking_data, "id": ref.id}
+
+def update_booking_by_doc_id(doc_id, updates):
+    """Updates a document directly by its Firestore ID (Prevents collisions)"""
+    try:
+        doc_ref = db.collection('queue').document(doc_id)
+        doc_ref.update(updates)
+        return True
+    except Exception as e:
+        print(f"Error updating doc {doc_id}: {e}")
+        return False
 
 def update_booking_in_db(patient_id, updates):
     """Finds a patient by ID and updates their status/time"""
