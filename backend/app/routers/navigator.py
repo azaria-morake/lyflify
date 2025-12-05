@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from datetime import datetime, timedelta
 # Ensure we import update_booking_in_db to avoid NameError
 from app.services.firebase import get_queue, update_booking_in_db
+from app.services.llm import analyze_operational_metrics
 from collections import Counter
 
 router = APIRouter()
@@ -178,3 +179,12 @@ async def get_clinic_analytics():
         "hourly_traffic": hourly_traffic,
         "diagnosis_data": diagnosis_data
     }
+
+
+@router.post("/analytics/insights")
+async def get_ai_insights(metrics: dict):
+    """
+    Separate endpoint to get Llama 3 thoughts without blocking the main dashboard load.
+    """
+    insights = analyze_operational_metrics(metrics)
+    return insights

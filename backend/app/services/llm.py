@@ -117,3 +117,41 @@ def explain_prescription(diagnosis: str, meds: list, notes: str) -> str:
     except Exception as e:
         print(f"LLM Error: {e}")
         return "Sorry, I cannot explain this right now. Please ask the nurse."
+    
+
+def analyze_operational_metrics(metrics: dict) -> list:
+    """
+    Generates Facility Management insights based on live data.
+    """
+    system_prompt = """
+    You are an expert Hospital Operations Manager AI. 
+    Analyze the provided clinic metrics and output 3 short, punchy insights.
+    
+    FORMAT: JSON Array of objects: [{"type": "success"|"warning"|"critical"|"info", "text": "Insight..."}]
+    
+    RULES:
+    1. Look for bottlenecks (High wait times, low efficiency).
+    2. Identify good performance (Low wait times).
+    3. Spot triage trends (Spike in flu/critical).
+    4. Be executive and directive (e.g., "Allocate more staff to Triage").
+    """
+    
+    user_content = f"Current Metrics: {json.dumps(metrics)}"
+
+    try:
+        completion = client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content}
+            ],
+            model="llama-3.1-8b-instant",
+            temperature=0.4,
+            max_tokens=256,
+            response_format={"type": "json_object"}
+        )
+        # Expecting: { "insights": [...] }
+        return json.loads(completion.choices[0].message.content).get("insights", [])
+    except Exception as e:
+        print(f"LLM Error: {e}")
+        # Fallback (The Rule-Based logic)
+        return [{"type": "info", "text": "AI Analysis unavailable. Using standard protocols."}]
