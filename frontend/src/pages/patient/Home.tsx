@@ -80,13 +80,39 @@ export default function PatientHome() {
           )}
         </div>
 
-        {/* --- CAROUSEL CONTAINER --- */}
-        <div 
+{/* --- CAROUSEL CONTAINER --- */}
+<div 
           ref={scrollRef}
           className="flex overflow-x-auto gap-4 pb-4 snap-x snap-mandatory -mx-4 px-4 scrollbar-hide"
         >
           
-          {/* EMPTY STATE */}
+          {/* 1. LOADING SKELETON (Prevents the "Pop-up" effect) */}
+          {isLoading && (
+             <Card className="min-w-[90%] snap-center shadow-sm border-teal-100/50 bg-white h-[280px] animate-pulse">
+                <CardHeader className="pb-2">
+                  <div className="flex justify-between items-start">
+                    <div className="h-6 w-32 bg-slate-100 rounded" />
+                    <div className="h-5 w-16 bg-slate-100 rounded-full" />
+                  </div>
+                </CardHeader>
+                <CardContent className="flex-1 flex flex-col gap-4">
+                   <div className="flex items-center space-x-4">
+                      <div className="h-14 w-14 bg-slate-100 rounded-lg" />
+                      <div className="space-y-2">
+                        <div className="h-8 w-24 bg-slate-100 rounded" />
+                        <div className="h-3 w-32 bg-slate-100 rounded" />
+                      </div>
+                   </div>
+                   <div className="pl-3 border-l-2 border-slate-100 space-y-3">
+                      <div className="h-3 w-40 bg-slate-100 rounded" />
+                      <div className="h-3 w-24 bg-slate-100 rounded" />
+                   </div>
+                   <div className="mt-auto h-10 w-full bg-slate-100 rounded" />
+                </CardContent>
+             </Card>
+          )}
+
+          {/* 2. EMPTY STATE CARD */}
           {(!hasAppointments && !isLoading) && (
             <Card className="min-w-[90%] snap-center p-8 text-center border-dashed border-2 border-slate-200 bg-white/50">
               <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">

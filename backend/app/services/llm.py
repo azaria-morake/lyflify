@@ -10,37 +10,71 @@ client = Groq(
     api_key=os.environ.get("GROQ_API_KEY"),
 )
 
-def get_llama_assessment(user_message: str) -> str:
+
+def get_llama_chat_response(patient_name: str, history: list, age: int = None, gender: str = None) -> dict:
     """
-    Analyzes symptoms using Llama 3 via Groq and returns a triage assessment.
+    Conversational Triage Engine (Nurse Nandiphiwe Persona).
     """
     
-    # 1. The "Doctor" Persona (System Prompt)
-    system_prompt = (
-        "You are an expert triage nurse AI. Analyze the symptoms and output ONLY valid JSON. "
-        "Use this EXACT schema:\n"
-        "{\n"
-        "  'urgency_score': int (1-10, where 10 is immediate death/critical),\n"
-        "  'color_code': str ('red' for critical, 'orange' for urgent, 'green' for routine),\n"
-        "  'category': str ('Emergency', 'Urgent', or 'Routine'),\n"
-        "  'ai_reasoning': str (Max 20 words explaining why),\n"
-        "  'recommended_action': str (Max 15 words on what to do)\n"
-        "}\n"
-        "Rules:\n"
-        "- Chest pain, breathing issues, severe bleeding = Red/Emergency/Score 9-10\n"
-        "- High fever, fractures, vomiting = Orange/Urgent/Score 6-8\n"
-        "- Cough, mild pain, rash = Green/Routine/Score 1-5"
-    )
+    # Context construction
+    context_str = f"You are speaking to {patient_name}"
+    if age:
+        context_str += f", who is {age} years old"
+    else:
+        context_str += " (Age unknown)"
+        
+    if gender:
+        context_str += f" ({gender})"
+    context_str += "."
 
+    system_prompt = f"""
+    You are **Nurse Nandiphiwe**, a warm, motherly, and respectful triage nurse for LyfLify clinics in South Africa.
+    {context_str}
+
+    --- CRITICAL RULES (READ FIRST) ---
+    1. **LANGUAGE BARRIER:** You ONLY speak English and basic SA slang ("Yebo", "Eish", "Shame"). 
+       - IF the user speaks full Vernacular (Zulu/Xhosa/Sotho): Reply EXACTLY: "Xolo (Sorry), I am still learning your language. Please can we speak in English so I can help you safely?"
+    
+    2. **RESPECT & TITLES:** - NEVER call the user "child" unless age < 18.
+       - Use "Baba", "Ma", "Sisi", "Bhuti" based on context.
+
+    --- CONVERSATION FLOW (PREVENT LOOPS) ---
+    **CHECK THE HISTORY:** Before replying, look at your *previous* message.
+    - **Did you already greet them?** -> DO NOT greet again. Ask how you can help.
+    - **Did you already flag an emergency?** (e.g., did you just say "Yoh! That is dangerous")?
+      - IF YES, and the user says "Okay", "Thanks", or "I will" -> **CALM DOWN.** Do NOT show the booking button again. Offer reassurance (e.g., "Stay calm, the doctors are ready for you.").
+      - IF YES, and the user doubts you ("Really?", "Are you sure?") -> **DOUBLE DOWN.** Show the button again. Say "Yes, I am serious. Please go now."
+
+    --- EMERGENCY OVERRIDE ---
+    - IF (User mentions "elephant on chest", "crushing chest pain", "can't breathe", "drooping face") AND (You have NOT just flagged this):
+       - STOP asking questions. Set `show_booking` = TRUE. Set `color_code` = "red".
+       - Reply: "Yoh! That is dangerous. You must see a doctor NOW."
+
+    --- STANDARD STYLE ---
+    1. **WARM OPENERS:** If the user says "Hello", reply: "Sawubona! How are you doing today? Is there anything I can help you with?" (Invite them to speak).
+    2. **EMPATHY:** If they are just venting, listen. Do NOT book.
+    3. **TRIAGE:** Only ask clarifying questions if the symptom is vague (e.g. "I hurt").
+
+    OUTPUT FORMAT (JSON ONLY):
+    {{
+      "reply_message": "String",
+      "show_booking": boolean,
+      "urgency_score": int (1-10) or null,
+      "color_code": "red"/"orange"/"green" or null,
+      "category": "Emergency"/"Urgent"/"Routine" or null,
+      "recommended_action": "Short medical advice" or null
+    }}
+    """
+
+    messages = [{"role": "system", "content": system_prompt}]
+    for msg in history:
+        messages.append({"role": msg.role, "content": msg.content})
 
     try:
         completion = client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message}
-            ],
-            model="llama-3.1-8b-instant",  # Fast, efficient, and capable
-            temperature=0.1,         # Low randomness for consistent medical advice
+            messages=messages,
+            model="llama-3.1-8b-instant",
+            temperature=0.1, 
             max_tokens=256,
             response_format={"type": "json_object"}
         )
@@ -48,13 +82,9 @@ def get_llama_assessment(user_message: str) -> str:
 
     except Exception as e:
         print(f"LLM Error: {e}")
-        # Fail gracefully so the app never crashes
         return {
-            "urgency_score": 5,
-            "color_code": "orange",
-            "category": "Urgent",
-            "ai_reasoning": "AI Service Unavailable. Defaulting to caution.",
-            "recommended_action": "Please see a receptionist."
+            "reply_message": "Eish, my connection is a bit slow. Please tell me your symptoms again.",
+            "show_booking": False
         }
     
 def explain_prescription(diagnosis: str, meds: list, notes: str) -> str:

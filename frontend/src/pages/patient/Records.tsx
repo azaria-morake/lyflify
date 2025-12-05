@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import api from '@/lib/api';
 
-// Fetch records from backend
 const fetchRecords = async () => {
   const response = await api.get('/records/list/demo_user');
   return response.data;
@@ -14,15 +13,13 @@ const fetchRecords = async () => {
 
 export default function PatientRecords() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [explanations, setExplanations] = useState<Record<string, string>>({}); // Cache explanations
+  const [explanations, setExplanations] = useState<Record<string, string>>({}); 
 
-  // 1. Fetch Data
   const { data: records, isLoading } = useQuery({
     queryKey: ['medicalRecords'],
     queryFn: fetchRecords,
   });
 
-  // 2. AI Mutation
   const explainMutation = useMutation({
     mutationFn: async (record: any) => {
       const response = await api.post('/records/explain', {
@@ -33,36 +30,69 @@ export default function PatientRecords() {
       return response.data.explanation;
     },
     onSuccess: (data, variables) => {
-      // Save the explanation so we don't need to re-fetch
       setExplanations(prev => ({ ...prev, [variables.id]: data }));
     }
   });
 
   const handleExplain = (record: any) => {
-    // Toggle Logic
     if (expandedId === record.id) {
       setExpandedId(null);
       return;
     }
-    
     setExpandedId(record.id);
-
-    // Only call AI if we haven't already explained this record
     if (!explanations[record.id]) {
       explainMutation.mutate(record);
     }
   };
 
-  if (isLoading) return <div className="p-8 text-center text-slate-400">Loading records...</div>;
-
   return (
     <div className="p-4 space-y-6 bg-slate-50 min-h-screen pb-24">
+      {/* Header */}
       <header className="bg-white p-6 -mx-4 -mt-4 mb-2 border-b shadow-sm">
         <h1 className="text-2xl font-bold text-slate-800">My Health Record</h1>
         <p className="text-slate-500 text-sm">Your history & prescriptions</p>
       </header>
 
       <div className="space-y-4">
+        
+        {/* --- 1. SKELETON LOADER --- */}
+        {isLoading && (
+          <>
+            {[1, 2].map((i) => (
+              <Card key={i} className="shadow-sm border-slate-200 animate-pulse">
+                <CardHeader className="pb-3 bg-slate-50/50 border-b border-slate-100">
+                  <div className="flex justify-between items-center">
+                    <div className="h-4 w-24 bg-slate-200 rounded" />
+                    <div className="h-5 w-20 bg-slate-200 rounded-full" />
+                  </div>
+                  <div className="h-6 w-48 bg-slate-200 rounded mt-3" />
+                </CardHeader>
+                <CardContent className="pt-4 space-y-4">
+                  <div className="space-y-2">
+                    <div className="h-3 w-32 bg-slate-200 rounded" />
+                    <div className="h-8 w-full bg-slate-100 rounded" />
+                    <div className="h-8 w-full bg-slate-100 rounded" />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="h-3 w-24 bg-slate-200 rounded" />
+                    <div className="h-12 w-full bg-slate-100 rounded" />
+                  </div>
+                  <div className="h-10 w-full bg-slate-200 rounded" />
+                </CardContent>
+              </Card>
+            ))}
+          </>
+        )}
+
+        {/* --- 2. EMPTY STATE --- */}
+        {(!isLoading && (!records || records.length === 0)) && (
+          <div className="text-center py-12 text-slate-400">
+            <FileText className="w-12 h-12 mx-auto mb-3 opacity-20" />
+            <p>No medical records found.</p>
+          </div>
+        )}
+
+        {/* --- 3. REAL DATA --- */}
         {records?.map((record: any) => (
           <Card key={record.id} className="shadow-sm border-slate-200">
             <CardHeader className="pb-3 bg-slate-50/50 border-b border-slate-100">
@@ -113,7 +143,7 @@ export default function PatientRecords() {
                     <div className="flex items-start gap-3">
                       <BotAvatar /> 
                       <div className="space-y-1 flex-1">
-                        <p className="font-bold text-sm text-teal-100 mb-1">LyfLify Explainer:</p>
+                        <p className="font-bold text-sm text-teal-100 mb-1">Nurse Nandiphiwe Explains:</p>
                         
                         {explanations[record.id] ? (
                            <p className="text-sm leading-relaxed whitespace-pre-line">

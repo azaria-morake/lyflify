@@ -1,15 +1,21 @@
 from pydantic import BaseModel
 from typing import List, Optional
 
+class ChatMessage(BaseModel):
+    role: str 
+    content: str
+
 class TriageRequest(BaseModel):
     patient_id: str
-    symptoms: str
+    patient_name: Optional[str] = "Patient"
     age: Optional[int] = None
     gender: Optional[str] = None
+    history: List[ChatMessage]
 
 class TriageResponse(BaseModel):
-    urgency_score: int  # 1-10 scale
-    color_code: str     # "red", "orange", "green"
-    category: str       # "Emergency", "Urgent", "Routine"
-    ai_reasoning: str   # The "Why"
-    recommended_action: str
+    reply_message: str
+    show_booking: bool
+    urgency_score: Optional[int] = None
+    color_code: Optional[str] = None
+    category: Optional[str] = None
+    recommended_action: Optional[str] = None

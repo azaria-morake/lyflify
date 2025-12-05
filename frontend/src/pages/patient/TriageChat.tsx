@@ -1,96 +1,110 @@
 import { useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Send, Bot, AlertCircle, CheckCircle2, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useMutation } from '@tanstack/react-query';
+import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
+
+type TriageData = {
+  urgency_score: number;
+  color_code: string;
+  category: string;
+  recommended_action: string;
+};
 
 type Message = {
   id: number;
-  text: string;
-  sender: 'user' | 'bot';
-  triageResult?: {
-    urgency_score: number;
-    color_code: string;
-    category: string;
-    ai_reasoning: string;
-    recommended_action: string;
-  };
+  role: 'user' | 'assistant';
+  content: string;
+  // Optional: Only assistant messages might have this
+  triageResult?: TriageData; 
 };
 
 export default function TriageChat() {
+  const user = useAuthStore((state) => state.user);
+  const navigate = useNavigate();
+  
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([
     { 
       id: 1, 
-      text: "Sawubona! I am the LyfLify Triage Assistant. Please tell me what symptoms you are feeling today.", 
-      sender: 'bot' 
+      role: 'assistant', 
+      content: `Sawubona ${user?.name || "there"}! I'm Nurse Nandiphiwe. How are you feeling today?` 
     }
   ]);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   
-  const navigate = useNavigate();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  useEffect(scrollToBottom, [messages]);
+
+  // AI Chat Mutation
+  const chatMutation = useMutation({
+    mutationFn: async (history: Message[]) => {
+      // 1. Format for Backend
+      const apiHistory = history.map(m => ({ role: m.role, content: m.content }));
+      
+      const res = await api.post('/triage/assess', {
+        patient_id: "demo_user",
+        patient_name: user?.name || "Patient",
+        history: apiHistory
+      });
+      return res.data;
+    },
+    onSuccess: (data) => {
+      // 2. Add Bot Response
+      const botMsg: Message = {
+        id: Date.now(),
+        role: 'assistant',
+        content: data.reply_message,
+        // Only attach triage data if the AI decided to show it
+        triageResult: data.show_booking ? {
+          urgency_score: data.urgency_score,
+          color_code: data.color_code,
+          category: data.category,
+          recommended_action: data.recommended_action
+        } : undefined
+      };
+      setMessages(prev => [...prev, botMsg]);
+    },
+    onError: () => {
+      setMessages(prev => [...prev, { 
+        id: Date.now(), 
+        role: 'assistant', 
+        content: "⚠️ Network Error: I couldn't reach the clinic. Please check your internet and try again." 
+      }]);
+    }
+  });
 
   // Booking Mutation
   const bookingMutation = useMutation({
     mutationFn: async (triageData: any) => {
       await api.post('/booking/create', {
-        patient_id: "demo_user", // In real app, get from auth store
-        patient_name: "Gogo Dlamini", // In real app, get from auth store
-        triage_score: triageData.color_code,
-        symptoms: messages.find(m => m.sender === 'user')?.text || "Reported via Chat"
+        patient_id: "demo_user",
+        patient_name: user?.name || "Gogo Dlamini",
+        triage_score: triageData.color_code, // Pass the color code for simple logic
+        symptoms: messages[messages.length - 2]?.content || "Chat Consultation" // Grab last user msg
       });
     },
-    onSuccess: () => {
-      // Redirect back to Home so they see the updated Smart Card
-      navigate('/'); 
-    }
-  });
-
-  // Auto-scroll to bottom
-  const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  useEffect(scrollToBottom, [messages]);
-
-  // API Mutation
-  const triageMutation = useMutation({
-    mutationFn: async (symptoms: string) => {
-      const res = await api.post('/triage/assess', {
-        patient_id: "demo_user", // In real app, get from auth store
-        symptoms: symptoms
-      });
-      return res.data;
-    },
-    onSuccess: (data) => {
-      const botResponse: Message = {
-        id: Date.now(),
-        text: data.ai_reasoning,
-        sender: 'bot',
-        triageResult: data 
-      };
-      setMessages(prev => [...prev, botResponse]);
-    },
-    onError: () => {
-      setMessages(prev => [...prev, { 
-        id: Date.now(), 
-        text: "I'm having trouble connecting to the clinic. Please try again or go directly to the front desk.", 
-        sender: 'bot' 
-      }]);
-    }
+    onSuccess: () => navigate('/')
   });
 
   const handleSend = () => {
     if (!input.trim()) return;
     
-    // Add User Message
-    const userMsg: Message = { id: Date.now(), text: input, sender: 'user' };
-    setMessages(prev => [...prev, userMsg]);
+    // 1. Add User Message immediately
+    const userMsg: Message = { id: Date.now(), role: 'user', content: input };
+    const newHistory = [...messages, userMsg];
     
-    // Trigger AI
-    triageMutation.mutate(input);
+    setMessages(newHistory);
     setInput('');
+    
+    // 2. Send full history to AI
+    chatMutation.mutate(newHistory);
   };
 
   return (
@@ -101,25 +115,33 @@ export default function TriageChat() {
           <Bot className="w-5 h-5 text-teal-700" />
         </div>
         <div>
-          <h2 className="font-bold text-slate-800">Triage Assistant</h2>
-          <p className="text-xs text-slate-500">AI-Powered Check-in</p>
+          <h2 className="font-bold text-slate-800">Nurse Nandi</h2>
+          <p className="text-xs text-slate-500">AI Triage Assistant</p>
         </div>
       </div>
 
       {/* Chat Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((msg) => (
-          <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] rounded-2xl p-3 text-sm ${
-              msg.sender === 'user' 
-                ? 'bg-teal-600 text-white rounded-br-none' 
-                : 'bg-white border border-slate-200 text-slate-700 rounded-bl-none shadow-sm'
-            }`}>
-              <p>{msg.text}</p>
+          <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            
+            {/* Avatar for Bot */}
+            {msg.role === 'assistant' && (
+              <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center mr-2 shrink-0">
+                <Bot className="w-4 h-4 text-teal-700" />
+              </div>
+            )}
 
-              {/* Dynamic Triage Card (Only shows if bot returns a result) */}
+            <div className={`max-w-[80%] rounded-2xl p-3 text-sm shadow-sm ${
+              msg.role === 'user' 
+                ? 'bg-teal-600 text-white rounded-br-none' 
+                : 'bg-white border border-slate-200 text-slate-700 rounded-bl-none'
+            }`}>
+              <p>{msg.content}</p>
+
+              {/* --- DYNAMIC BOOKING CARD (Only if AI says so) --- */}
               {msg.triageResult && (
-                <Card className={`mt-3 border-l-4 ${
+                <Card className={`mt-3 border-l-4 overflow-hidden ${
                   msg.triageResult.color_code === 'red' ? 'border-l-red-500 bg-red-50' :
                   msg.triageResult.color_code === 'orange' ? 'border-l-orange-500 bg-orange-50' :
                   'border-l-green-500 bg-green-50'
@@ -129,21 +151,17 @@ export default function TriageChat() {
                       <Badge variant="outline" className="bg-white uppercase text-xs font-bold">
                         {msg.triageResult.category}
                       </Badge>
-
-                      <div className="text-sm font-extrabold" style={{ color: msg.triageResult.color_code }}>
-                        SCORE: {msg.triageResult.urgency_score}/10
-                      </div>
-
                       {msg.triageResult.color_code === 'red' && <AlertCircle className="w-4 h-4 text-red-600" />}
                       {msg.triageResult.color_code === 'green' && <CheckCircle2 className="w-4 h-4 text-green-600" />}
                     </div>
-                    <p className="font-bold text-slate-800 mb-1">Recommended Action:</p>
-                    <p className="text-slate-600 italic">{msg.triageResult.recommended_action}</p>       
+                    
+                    <p className="text-slate-600 text-xs italic mb-3">
+                      {msg.triageResult.recommended_action}
+                    </p>       
        
-                    {/* THE ACTION BUTTON */}
                     <Button 
                       size="sm" 
-                      className={`w-full ${
+                      className={`w-full text-xs h-8 ${
                         msg.triageResult.color_code === 'red' 
                           ? 'bg-red-600 hover:bg-red-700' 
                           : 'bg-teal-600 hover:bg-teal-700'
@@ -151,21 +169,29 @@ export default function TriageChat() {
                       onClick={() => bookingMutation.mutate(msg.triageResult)}
                       disabled={bookingMutation.isPending}
                     >
-                      {bookingMutation.isPending ? "Confirming..." : 
-                         msg.triageResult.color_code === 'red' ? "Notify Clinic: Emergency" : "Book Next Slot"
-                      }
+                      {bookingMutation.isPending ? "Booking..." : "Book Visit Now"}
                     </Button>
                   </div>
                 </Card>
               )}
             </div>
+
+            {/* Avatar for User */}
+            {msg.role === 'user' && (
+              <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center ml-2 shrink-0">
+                <User className="w-4 h-4 text-slate-500" />
+              </div>
+            )}
           </div>
         ))}
         
         {/* Typing Indicator */}
-        {triageMutation.isPending && (
-          <div className="flex justify-start">
-             <div className="bg-white border border-slate-200 rounded-2xl p-3 rounded-bl-none shadow-sm flex space-x-1 items-center">
+        {chatMutation.isPending && (
+          <div className="flex justify-start items-center">
+             <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center mr-2">
+                <Bot className="w-4 h-4 text-teal-700" />
+              </div>
+             <div className="bg-white border border-slate-200 rounded-2xl p-4 rounded-bl-none shadow-sm flex space-x-1">
                 <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                 <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                 <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
@@ -176,19 +202,19 @@ export default function TriageChat() {
       </div>
 
       {/* Input Area */}
-      <div className="p-4 bg-white border-t pb-24"> {/* Extra padding for bottom nav */}
+      <div className="p-4 bg-white border-t pb-24">
         <div className="flex gap-2">
           <Input 
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Type your symptoms..."
-            className="flex-1"
-            disabled={triageMutation.isPending}
+            placeholder="Type your message..."
+            className="flex-1 focus-visible:ring-teal-600"
+            disabled={chatMutation.isPending}
           />
           <Button 
             onClick={handleSend} 
-            disabled={triageMutation.isPending || !input.trim()}
+            disabled={chatMutation.isPending || !input.trim()}
             className="bg-teal-600 hover:bg-teal-700 w-12 px-0"
           >
             <Send className="w-5 h-5" />
