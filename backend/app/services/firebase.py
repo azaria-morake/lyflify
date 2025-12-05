@@ -74,6 +74,16 @@ def seed_queue(data):
         collection.add(item)
     return True
 
+
+def add_patient_record(data):
+    """Saves a new medical record"""
+    # 1. Add to records collection
+    db.collection('records').add(data)
+    
+    # 2. Future: To auto-remove from queue upon discharge
+    # We can call delete_booking(patient_id) here if we passed the ID.
+    return True
+
 def get_patient_records(patient_id):
     """Fetches medical history for a patient"""
     # Sort by date descending (newest first)

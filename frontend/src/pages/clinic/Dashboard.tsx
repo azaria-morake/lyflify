@@ -62,6 +62,8 @@ export default function ClinicDashboard() {
   const [searchQuery, setSearchQuery] = useState(""); 
   const queryClient = useQueryClient();
   const [actionStatus, setActionStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [showConsultModal, setShowConsultModal] = useState(false);
+  const [consultPatient, setConsultPatient] = useState<any>(null);
 
   
 
@@ -118,6 +120,27 @@ export default function ClinicDashboard() {
     onSuccess: () => {
       // Optional: You could show a toast here
       console.log("Vitals requested");
+    }
+  });
+
+  const createRecordMutation = useMutation({
+    mutationFn: async (data: any) => {
+      // 1. Create the Record
+      await api.post('/records/create', {
+        patient_id: data.patient_id, // e.g. "demo_user"
+        doctor_name: "Dr. Nkosi", // Hardcoded for demo
+        diagnosis: data.diagnosis,
+        meds: data.meds.split(',').map((m: string) => m.trim()), // Split CSV string
+        notes: data.notes
+      });
+      
+      // 2. Remove from Queue (Discharge)
+      // We reuse the existing delete endpoint
+      await api.post('/booking/update', { doc_id: data.doc_id, action: "delete" });
+    },
+    onSuccess: () => {
+      setShowConsultModal(false);
+      queryClient.invalidateQueries({ queryKey: ['liveQueue'] });
     }
   });
 
@@ -316,7 +339,15 @@ export default function ClinicDashboard() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="icon">
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        onClick={(e) => {
+                          e.stopPropagation(); // Don't trigger the main row click
+                          setConsultPatient(patient);
+                          setShowConsultModal(true);
+                        }}
+                      >
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
                     </TableCell>
@@ -514,6 +545,55 @@ export default function ClinicDashboard() {
               </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* --- 2. DOCTOR'S SCRIPT PAD MODAL --- */}
+      <Dialog open={showConsultModal} onOpenChange={setShowConsultModal}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Consultation: {consultPatient?.name || consultPatient?.patient_name}</DialogTitle>
+            <p className="text-sm text-slate-500">
+              Complete this form to discharge the patient and update their records.
+            </p>
+          </DialogHeader>
+          
+          <form 
+            className="space-y-4 py-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              createRecordMutation.mutate({
+                patient_id: consultPatient?.patient_id,
+                doc_id: consultPatient?.id,
+                diagnosis: formData.get('diagnosis'),
+                meds: formData.get('meds'),
+                notes: formData.get('notes'),
+              });
+            }}
+          >
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Diagnosis</label>
+              <Input name="diagnosis" placeholder="e.g. Upper Respiratory Infection" required />
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Medication (Comma separated)</label>
+              <Input name="meds" placeholder="e.g. Amoxicillin 500mg, Panado" required />
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Clinical Notes</label>
+              <Textarea name="notes" placeholder="Patient observations..." required />
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowConsultModal(false)}>Cancel</Button>
+              <Button type="submit" className="bg-teal-600 hover:bg-teal-700" disabled={createRecordMutation.isPending}>
+                {createRecordMutation.isPending ? "Discharging..." : "Save & Discharge"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
