@@ -57,7 +57,7 @@ async def create_new_record(request: CreateRecordRequest):
 
 class CreateRecordRequest(BaseModel):
     patient_id: str
-    patient_name: str # <--- Added this field
+    patient_name: str  # <--- NEW FIELD
     doctor_name: str
     diagnosis: str
     meds: List[str]
@@ -69,8 +69,8 @@ async def create_new_record(request: CreateRecordRequest):
     
     record_data = {
         "patient_id": request.patient_id,
-        "patient_name": request.patient_name, # <--- Save the name
-        "date": datetime.now().strftime("%d %b %Y"), 
+        "patient_name": request.patient_name, # <--- SAVE IT
+        "date": datetime.now().strftime("%Y-%m-%d"), 
         "doctor": request.doctor_name,
         "diagnosis": request.diagnosis,
         "meds": request.meds,
@@ -82,7 +82,6 @@ async def create_new_record(request: CreateRecordRequest):
     
     return {"status": "success", "message": "Record created"}
 
-# 2. NEW: Endpoint to get the patient registry
 @router.get("/all-patients")
 async def list_all_patients():
     """Returns a unique list of patients who have records."""

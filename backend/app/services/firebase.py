@@ -125,33 +125,40 @@ def seed_records(patient_id):
     return True
 
 
+# backend/app/services/firebase.py
+
 def get_unique_patients():
-    """
-    Fetches all records and deduplicates them by patient_id 
-    to create a 'Patient Registry' view.
-    """
     docs = db.collection('records').stream()
-    
-    # Dictionary to keep unique patients (Key = patient_id)
     registry = {}
     
     for doc in docs:
         data = doc.to_dict()
         pid = data.get("patient_id")
         
-        if pid:
-            # We only need the latest info or basic profile info
-            # If we haven't seen this patient yet, or if this record has a name (some old ones might not), add it
-            if pid not in registry:
-                registry[pid] = {
-                    "patient_id": pid,
-                    "patient_name": data.get("patient_name", "Unknown"),
-                    "last_visit": data.get("date"),
-                    "last_diagnosis": data.get("diagnosis"),
-                    "last_doctor": data.get("doctor")
-                }
-            else:
-                # Optional: You could compare dates here to ensure we show the MOST RECENT visit info
-                pass
+        if not pid: continue
+            
+        name = data.get("patient_name", "Unknown")
+        date = data.get("date", "0000-00-00")
+        
+        should_update = False
+        
+        # Logic to pick the best record (Real name > Unknown, New Date > Old Date)
+        if pid not in registry:
+            should_update = True
+        else:
+            current = registry[pid]
+            if (current['patient_name'] in ["Unknown", "----"]) and (name not in ["Unknown", "----"]):
+                should_update = True
+            elif date > current['last_visit']:
+                should_update = True
+
+        if should_update:
+            registry[pid] = {
+                "patient_id": pid,
+                "patient_name": name,
+                "last_visit": date,
+                "last_diagnosis": data.get("diagnosis"),
+                "last_doctor": data.get("doctor")
+            }
                 
-    return list(registry.values())
+    return sorted(list(registry.values()), key=lambda x: x['patient_name'])
