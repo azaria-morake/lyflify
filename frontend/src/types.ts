@@ -6,9 +6,13 @@ export interface Patient {
   name?: string; 
   patient_name?: string;
   
+  // New Fields for Doctor Assignment
+  doctor_id?: string;
+  doctor_name?: string;
+  
   // Triage Data
   score: string | number; // e.g. "High (8/10)" or 8
-  status: 'Waiting' | 'Pending Approval' | 'Confirmed' | 'Cancelled' | 'Delayed' | 'Emergency En Route' | string;
+  status: 'Waiting' | 'Pending Approval' | 'Confirmed' | 'Cancelled' | 'Delayed' | 'Emergency En Route' | 'Waiting for Doctor' | 'In Review' | string;
   urgent: boolean;
   symptoms: string;
   

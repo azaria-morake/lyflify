@@ -108,7 +108,8 @@ export default function TriageChat() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-50">
+    <div className="flex flex-col h-full md:h-[calc(100vh-5rem)] bg-slate-50 relative"> 
+      
       {/* Header */}
       <div className="bg-white border-b p-4 flex items-center shadow-sm sticky top-0 z-10">
         <div className="bg-teal-100 p-2 rounded-full mr-3">
@@ -202,8 +203,8 @@ export default function TriageChat() {
       </div>
 
       {/* Input Area */}
-      <div className="p-4 bg-white border-t pb-24">
-        <div className="flex gap-2">
+      <div className="p-4 bg-white border-t pb-4 md:pb-8 sticky bottom-0 z-20">
+        <div className="flex gap-2 max-w-4xl mx-auto">
           <Input 
             value={input}
             onChange={(e) => setInput(e.target.value)}

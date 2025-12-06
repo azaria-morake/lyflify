@@ -59,9 +59,10 @@ export default function PatientHome() {
   const hasAppointments = appointments && appointments.length > 0;
 
   return (
-    <div className="p-4 space-y-6 bg-slate-50 min-h-screen pb-24">
+    <div className="p-4 space-y-6 bg-slate-50 min-h-screen pb-24 md:pb-6"> {/* Adjusted padding */}
+      
       {/* Header */}
-      <header className="bg-white p-6 -mx-4 -mt-4 mb-2 border-b shadow-sm">
+      <header className="bg-white p-6 -mx-4 -mt-4 mb-2 border-b shadow-sm md:rounded-xl md:mx-0 md:mt-0">
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold text-slate-800">Sawubona, Gogo</h1>
@@ -69,8 +70,8 @@ export default function PatientHome() {
           </div>
           
           <div className="flex items-center gap-3">
-             {/* Logout Button */}
-             <Button variant="ghost" size="icon" onClick={handleLogout} className="text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full">
+             {/* HIDE ON DESKTOP (md:hidden) */}
+             <Button variant="ghost" size="icon" onClick={handleLogout} className="md:hidden text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full">
                <LogOut className="w-5 h-5" />
              </Button>
 

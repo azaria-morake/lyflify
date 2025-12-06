@@ -15,7 +15,7 @@ export default function Login() {
   const [error, setError] = useState('');
   
   const navigate = useNavigate();
-  const setStoreUser = useAuthStore((state) => state.login);
+  const loginUser = useAuthStore((state) => state.login); // Rename for clarity
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,24 +24,12 @@ export default function Login() {
 
     try {
       // 1. Authenticate with Firebase
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const firebaseUser = userCredential.user;
-
-      // 2. Determine Role (For Hackathon Demo purposes)
-      // In a real app, this role would come from a database query or custom claim.
-      // Here we cheat slightly for the demo: "dr" in email = PROVIDER.
-      let role: 'PATIENT' | 'PROVIDER' = 'PATIENT';
-      let name = "Thabo"; // Default demo name
-
-      if (email.includes('dr') || email.includes('clinic')) {
-        role = 'PROVIDER';
-        name = "Dr. Zulu";
-      }
-
-      // 3. Update Global Store
-      setStoreUser(role); // This updates Zustand
+      await signInWithEmailAndPassword(auth, email, password);
       
-      // 4. Redirect
+      // 2. Pass EMAIL to store (Store handles the role logic now)
+      loginUser(email); 
+      
+      // 3. Redirect
       navigate('/');
       
     } catch (err: any) {
@@ -131,17 +119,22 @@ export default function Login() {
 
               {/* HACKATHON HELPER HINT */}
               <div className="mt-4 p-3 bg-slate-50 rounded text-xs text-slate-500 text-center border border-slate-100">
-                <p className="font-semibold mb-1">Demo Credentials:</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <span className="block font-bold text-slate-700">Patient</span>
-                    user@demo.com / 123456
+                <p className="font-semibold mb-2">Demo Credentials:</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="flex flex-col">
+                    <span className="font-bold text-slate-700">Patient</span>
+                    <span>user@demo.com</span>
                   </div>
-                  <div>
-                    <span className="block font-bold text-slate-700">Doctor</span>
-                    dr@demo.com / 123456
+                  <div className="flex flex-col">
+                    <span className="font-bold text-slate-700">Doctor</span>
+                    <span>dr@demo.com</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="font-bold text-slate-700">Admin</span>
+                    <span>clinic@demo.com</span>
                   </div>
                 </div>
+                <p className="mt-3 text-[10px] text-slate-400">Password for all: 123456</p>
               </div>
 
             </form>

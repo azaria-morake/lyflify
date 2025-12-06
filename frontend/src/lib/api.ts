@@ -1,7 +1,6 @@
 import axios from 'axios';
 import { auth } from './firebase'; 
 
-
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const api = axios.create({
@@ -11,15 +10,17 @@ const api = axios.create({
   },
 });
 
-// --- NEW: REQUEST INTERCEPTOR ---
-// Before sending any request, grab the latest token from Firebase
+// --- ADD THIS INTERCEPTOR ---
 api.interceptors.request.use(async (config) => {
   const user = auth.currentUser;
   
   if (user) {
-    // This gets the JWT token (and refreshes it if expired)
-    const token = await user.getIdToken();
-    config.headers.Authorization = `Bearer ${token}`;
+    try {
+      const token = await user.getIdToken();
+      config.headers.Authorization = `Bearer ${token}`;
+    } catch (e) {
+      console.error("Error fetching token:", e);
+    }
   }
   
   return config;

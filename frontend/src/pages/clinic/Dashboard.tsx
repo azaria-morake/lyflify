@@ -1,10 +1,14 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, useMemo, useEffect } from 'react'; // Added useEffect
-import { Search, Bell, MoreHorizontal, CheckCircle2, AlertCircle, Stethoscope, BrainCircuit, Clock, Trash2 } from 'lucide-react';
-import { collection, onSnapshot, query, orderBy } from "firebase/firestore"; // Import Firestore functions
+import { useState, useMemo, useEffect } from 'react';
+import { 
+  Search, Bell, MoreHorizontal, CheckCircle2, AlertCircle, Stethoscope, 
+  BrainCircuit, Clock, Trash2, UserRound, Activity, Copy
+} from 'lucide-react';
+import { collection, onSnapshot, query } from "firebase/firestore";
 
 import api from '../../lib/api';
-import { db } from '../../lib/firebase'; // Import your initialized DB
+import { db } from '../../lib/firebase';
+import { useAuthStore } from '../../lib/store';
 import { Patient } from '../../types'; 
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -20,8 +24,23 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { toast } from 'sonner';
 
-// ... (Keep your getScore, getWaitTime, sortPatients helpers exactly as they were) ...
+// --- MOCK DOCTORS LIST ---
+const DOCTORS_ON_DUTY = [
+  { id: "dr.zulu@lyflify.com", name: "Dr. Zulu", specialty: "General Practitioner" },
+  { id: "dr.nkosi@lyflify.com", name: "Dr. Nkosi", specialty: "Pediatrics" },
+  { id: "dr.naidoo@lyflify.com", name: "Dr. Naidoo", specialty: "Trauma Unit" },
+];
+
+const NOTIFICATIONS = [
+  { id: 1, title: "System Delay Activated", desc: "15min buffer added.", time: "Just now", type: "alert" },
+  { id: 2, title: "High Urgency Triage", desc: "New patient flagged Critical.", time: "2m ago", type: "critical" },
+  { id: 3, title: "Vitals Received", desc: "Thabo Mbeki - BP: 140/90", time: "15m ago", type: "info" },
+  { id: 4, title: "Shift Handoff", desc: "Dr. Zulu checked in.", time: "1h ago", type: "info" }
+];
+
+// --- HELPERS ---
 const getScore = (patient: Patient): number => {
   if (!patient) return 0;
   if (typeof patient.score === 'number') return patient.score;
@@ -46,6 +65,15 @@ const getWaitTime = (createdAt: string) => {
   }
 };
 
+const getStatusColor = (status: string, urgent: boolean) => {
+  if (urgent || status === 'Emergency En Route') return 'text-red-700 bg-red-50 border-red-200';
+  if (status === 'Waiting for Doctor') return 'text-indigo-700 bg-indigo-50 border-indigo-200';
+  if (status === 'Pending Approval') return 'text-amber-700 bg-amber-50 border-amber-200';
+  if (status === 'Confirmed') return 'text-emerald-700 bg-emerald-50 border-emerald-200';
+  if (status === 'In Review') return 'text-blue-700 bg-blue-50 border-blue-200';
+  return 'text-slate-600 bg-slate-100 border-slate-200';
+};
+
 const sortPatients = (a: Patient, b: Patient) => {
   const scoreA = getScore(a);
   const scoreB = getScore(b);
@@ -54,24 +82,26 @@ const sortPatients = (a: Patient, b: Patient) => {
 };
 
 export default function ClinicDashboard() {
+  const user = useAuthStore((state) => state.user);
+  const queryClient = useQueryClient();
+
+  // UI State
   const [showModal, setShowModal] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [searchQuery, setSearchQuery] = useState(""); 
-  
-  // NEW: Local state for Real-Time Data
-  const [patients, setPatients] = useState<Patient[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [patients, setPatients] = useState<Patient[]>([]);
   
-  const queryClient = useQueryClient();
-  const [actionStatus, setActionStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  // Action Modals
   const [showConsultModal, setShowConsultModal] = useState(false);
   const [consultPatient, setConsultPatient] = useState<Patient | null>(null);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [selectedDoctor, setSelectedDoctor] = useState(DOCTORS_ON_DUTY[0]);
+  const [medsInput, setMedsInput] = useState("");
 
-  // --- REPLACED: useQuery Polling -> useEffect Listener ---
+  // --- REAL-TIME DATA ---
   useEffect(() => {
-    // Create a listener on the 'queue' collection
     const q = query(collection(db, "queue"));
-    
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const liveData = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -81,15 +111,13 @@ export default function ClinicDashboard() {
       setPatients(liveData);
       setIsLoading(false);
     }, (error) => {
-      console.error("Error fetching real-time data:", error);
+      console.error("Data fetch error:", error);
       setIsLoading(false);
     });
-
-    // Cleanup listener when component unmounts
     return () => unsubscribe();
   }, []);
-  // --------------------------------------------------------
 
+  // --- FILTERING ---
   const sortedPatients = useMemo(() => {
     if (!patients) return [];
     
@@ -97,194 +125,338 @@ export default function ClinicDashboard() {
       const query = searchQuery.toLowerCase();
       const name = (p.name || p.patient_name || "").toLowerCase();
       const id = (p.patient_id || "").toLowerCase();
-      return name.includes(query) || id.includes(query);
+      if (!(name.includes(query) || id.includes(query))) return false;
+
+      // 1. Clinic Admin View
+      if (user?.role === 'CLINIC') {
+        return true; 
+      } 
+      
+      // 2. Doctor View
+      if (user?.role === 'DOCTOR') {
+        return (p.doctor_id === user.id) || 
+               (p.status === 'Waiting for Doctor') || 
+               (p.status === 'In Review') ||
+               (p.urgent === true); // Always show emergencies
+      }
+      return true;
     });
 
     return filtered.sort(sortPatients);
-  }, [patients, searchQuery]);
+  }, [patients, searchQuery, user]);
 
-  // --- ACTIONS (Keep utilizing API for logic/writes) ---
-  const approveMutation = useMutation({
-    mutationFn: async (docId: string) => {
-      await api.post('/booking/update', { doc_id: docId, action: "approve" });
+  // --- ACTIONS ---
+  const assignMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedPatient) return;
+      await api.post('/booking/update', { 
+        doc_id: selectedPatient.id, 
+        action: "assign",
+        payload: { doctor_id: selectedDoctor.id, doctor_name: selectedDoctor.name }
+      });
     },
     onSuccess: () => {
-      setActionStatus('success');
-      // No need to invalidateQuery, the Listener handles the UI update!
+      setShowAssignModal(false);
+      setShowModal(false); 
+      toast.success("Doctor Assigned", {
+        description: `${selectedPatient?.name} assigned to ${selectedDoctor.name}.`
+      });
     },
-    onError: () => setActionStatus('error')
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (docId: string) => {
-      await api.post('/booking/update', { doc_id: docId, action: "delete" });
-    },
-    onSuccess: () => setShowModal(false)
-  });
-
-  const vitalsMutation = useMutation({
-    mutationFn: async (docId: string) => {
-      await api.post('/booking/update', { doc_id: docId, action: "vitals" });
-    },
-    onSuccess: () => console.log("Vitals requested")
+    onError: () => toast.error("Assignment Failed", { description: "Check backend logs." })
   });
 
   const createRecordMutation = useMutation({
     mutationFn: async (data: any) => {
       await api.post('/records/create', {
         patient_id: data.patient_id,
-        patient_name: data.patient_name, // <--- Pass the name
-        doctor_name: "Dr. Nkosi", 
+        patient_name: data.patient_name,
+        doctor_name: user?.name || "Dr. Zulu", 
         diagnosis: data.diagnosis,
         meds: data.meds.split(',').map((m: string) => m.trim()),
         notes: data.notes
       });
-      
       await api.post('/booking/update', { doc_id: data.doc_id, action: "delete" });
     },
-    onSuccess: () => setShowConsultModal(false)
+    onSuccess: () => {
+      setShowConsultModal(false);
+      queryClient.invalidateQueries({ queryKey: ['liveQueue'] });
+      queryClient.invalidateQueries({ queryKey: ['allPatients'] }); 
+      toast.success("Patient Discharged", {
+        description: "Medical records updated successfully."
+      });
+    }
   });
 
-  // ... (Rest of your component logic: handleClose, delayMutation, handleReview, Render Return) ...
-  // Be sure to copy the rest of your JSX from the previous file or keep it as is. 
-  // The only big change was replacing `useQuery` with `useEffect`.
+  const delayMutation = useMutation({
+    mutationFn: async () => { await api.post('/navigator/delay'); },
+    onSuccess: () => toast.warning("Simulated Delay", { description: "+15 minutes added to all patients." })
+  });
 
-  // FOR BREVITY: I'm only including the changed logic above. 
-  // Make sure you replace the `useQuery` block and imports, but keep your JSX render the same!
-  
-  // ...
-  // [JSX RENDER CODE REMAINS THE SAME]
-  // ...
-  
-  // COPY-PASTE NOTE: When you implement this, ensure the `NOTIFICATIONS` constant 
-  // and the entire `return (` block remains exactly as it was in your previous file.
+  const deleteMutation = useMutation({
+    mutationFn: async (docId: string) => {
+      await api.post('/booking/update', { doc_id: docId, action: "delete" });
+    },
+    onSuccess: () => {
+      setShowModal(false);
+      toast.info("Record Removed");
+    }
+  });
+
+  // --- HELPERS ---
+  const isDoctor = user?.role === 'DOCTOR';
   
   const handleClose = () => {
     setShowModal(false);
-    setTimeout(() => setActionStatus('idle'), 300); 
   };
-
-  const delayMutation = useMutation({
-    mutationFn: async () => {
-      await api.post('/navigator/delay');
-    },
-    // No onSuccess needed strictly, but good for logs
-  });
 
   const handleReview = (patient: Patient) => {
     setSelectedPatient(patient);
     setShowModal(true);
   };
 
-  const NOTIFICATIONS = [
-    { id: 1, title: "System Delay Activated", desc: "15min buffer added.", time: "Just now", type: "alert" },
-    { id: 2, title: "High Urgency Triage", desc: "New patient flagged Critical.", time: "2m ago", type: "critical" },
-    { id: 3, title: "Vitals Received", desc: "Thabo Mbeki - BP: 140/90", time: "15m ago", type: "info" },
-    { id: 4, title: "Shift Handoff", desc: "Dr. Zulu checked in.", time: "1h ago", type: "info" }
-  ];
+  const addQuickScript = (med: string) => {
+    setMedsInput(prev => prev ? `${prev}, ${med}` : med);
+  };
 
   return (
-    <div className="flex flex-col h-full bg-slate-50">
-      <header className="h-16 bg-white border-b flex items-center justify-between px-6 sticky top-0 z-10">
-        <h2 className="text-lg font-semibold text-slate-800 flex items-center">
-          <BrainCircuit className="w-5 h-5 mr-2 text-teal-600" />
-          AI Triage Queue
-        </h2>
-        <div className="flex items-center space-x-4">
-          <Button 
-            variant="destructive" 
-            size="sm"
-            onClick={() => delayMutation.mutate()}
-            disabled={delayMutation.isPending}
-            className="shadow-md"
-          >
-            {delayMutation.isPending ? "Simulating..." : "⚠ Simulate Delay (+15m)"}
-          </Button>
+    <div className={`flex flex-col h-full ${isDoctor ? 'bg-indigo-50/30' : 'bg-slate-50'}`}>
+      
+      {/* HEADER */}
+      <header className={`flex flex-col md:flex-row md:h-16 md:items-center justify-between px-6 py-4 md:py-0 border-b sticky top-0 z-10 gap-4 ${isDoctor ? 'bg-indigo-600 text-white shadow-md' : 'bg-white'}`}>
+        <div className="flex items-center justify-between w-full md:w-auto">
+          <h2 className="text-lg font-semibold flex items-center">
+            {isDoctor ? (
+              <><Stethoscope className="w-5 h-5 mr-2 text-indigo-200" /> Dr. Zulu's Queue</>
+            ) : (
+              <><Activity className="w-5 h-5 mr-2 text-teal-600" /> Clinic Operations</>
+            )}
+          </h2>
+          
+          <div className="md:hidden">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className={isDoctor ? "text-white hover:bg-indigo-700" : ""}>
+                  <Bell className="w-5 h-5" />
+                  <span className="absolute top-2 right-2 h-2 w-2 bg-red-500 rounded-full animate-pulse"></span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent>
+                <SheetHeader className="mb-6">
+                  <SheetTitle>Clinic Activity Feed</SheetTitle>
+                  <SheetDescription>Real-time updates.</SheetDescription>
+                </SheetHeader>
+                <div className="space-y-6">
+                  {NOTIFICATIONS.map((notif) => (
+                    <div key={notif.id} className="flex gap-4 pb-4 border-b border-slate-100 last:border-0">
+                      <div className={`mt-1 h-2 w-2 rounded-full shrink-0 ${
+                        notif.type === 'critical' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 
+                        notif.type === 'alert' ? 'bg-amber-500' : 'bg-teal-500'
+                      }`} />
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium leading-none text-slate-800">{notif.title}</p>
+                        <p className="text-xs text-slate-500">{notif.desc}</p>
+                        <p className="text-[10px] text-slate-400 font-mono uppercase pt-1">{notif.time}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </SheetContent>
+            </Sheet>
+          </div>
+        </div>
 
-          <div className="relative">
-            <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 w-full md:w-auto">
+          {isDoctor && (
+            <div className="hidden md:flex items-center bg-indigo-700/50 px-3 py-1 rounded-full border border-indigo-500/50">
+              <span className="relative flex h-2.5 w-2.5 mr-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+              </span>
+              <span className="text-xs font-medium text-indigo-100">On Duty</span>
+            </div>
+          )}
+
+          {!isDoctor && (
+            <Button 
+              variant="destructive" 
+              size="sm"
+              onClick={() => delayMutation.mutate()}
+              disabled={delayMutation.isPending}
+              className="shadow-md w-full md:w-auto"
+            >
+              {delayMutation.isPending ? "Simulating..." : "⚠ Simulate Delay (+15m)"}
+            </Button>
+          )}
+
+          <div className="relative w-full md:w-64">
+            <Search className={`h-4 w-4 absolute left-3 top-3 ${isDoctor ? "text-indigo-200" : "text-slate-400"}`} />
             <Input 
-              className="pl-9 w-64 bg-slate-50" 
-              placeholder="Search patient ID or Name..." 
+              className={`pl-9 w-full ${isDoctor ? "bg-indigo-700/50 border-indigo-500/50 text-white placeholder:text-indigo-300 focus-visible:ring-indigo-400" : "bg-slate-50"}`} 
+              placeholder="Search patient..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="icon" className="relative">
-                <Bell className="h-4 w-4" />
-                <span className="absolute top-2 right-2 h-2 w-2 bg-red-500 rounded-full animate-pulse"></span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent>
-              <SheetHeader className="mb-6">
-                <SheetTitle>Clinic Activity Feed</SheetTitle>
-                <SheetDescription>Real-time updates from Triage AI and Patient Queue.</SheetDescription>
-              </SheetHeader>
-              <div className="space-y-6">
-                {NOTIFICATIONS.map((notif) => (
-                  <div key={notif.id} className="flex gap-4 pb-4 border-b border-slate-100 last:border-0">
-                    <div className={`mt-1 h-2 w-2 rounded-full shrink-0 ${
-                      notif.type === 'critical' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 
-                      notif.type === 'alert' ? 'bg-amber-500' : 'bg-teal-500'
-                    }`} />
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium leading-none text-slate-800">{notif.title}</p>
-                      <p className="text-xs text-slate-500">{notif.desc}</p>
-                      <p className="text-[10px] text-slate-400 font-mono uppercase pt-1">{notif.time}</p>
+
+          <div className="hidden md:block">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant={isDoctor ? "secondary" : "outline"} size="icon" className="relative">
+                  <Bell className={`h-4 w-4 ${isDoctor ? "text-indigo-700" : ""}`} />
+                  <span className="absolute top-2 right-2 h-2 w-2 bg-red-500 rounded-full animate-pulse"></span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent>
+                <SheetHeader className="mb-6">
+                  <SheetTitle>Clinic Activity Feed</SheetTitle>
+                  <SheetDescription>Real-time updates from Triage AI.</SheetDescription>
+                </SheetHeader>
+                <div className="space-y-6">
+                  {NOTIFICATIONS.map((notif) => (
+                    <div key={notif.id} className="flex gap-4 pb-4 border-b border-slate-100 last:border-0">
+                      <div className={`mt-1 h-2 w-2 rounded-full shrink-0 ${
+                        notif.type === 'critical' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 
+                        notif.type === 'alert' ? 'bg-amber-500' : 'bg-teal-500'
+                      }`} />
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium leading-none text-slate-800">{notif.title}</p>
+                        <p className="text-xs text-slate-500">{notif.desc}</p>
+                        <p className="text-[10px] text-slate-400 font-mono uppercase pt-1">{notif.time}</p>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </SheetContent>
-          </Sheet>
+                  ))}
+                </div>
+              </SheetContent>
+            </Sheet>
+          </div>
         </div>
       </header>
 
-      <div className="p-6 overflow-auto flex-1">
-        <div className="rounded-md border bg-white shadow-sm overflow-hidden">
+      {/* CONTENT AREA */}
+      <div className="p-4 md:p-6 overflow-auto flex-1">
+        
+        {/* --- MOBILE VIEW (Cards) --- */}
+        <div className="md:hidden space-y-4">
+          {isLoading ? (
+             <div className="text-center text-slate-400 py-10">Loading Queue...</div>
+          ) : sortedPatients.length === 0 ? (
+             <div className="text-center text-slate-400 py-10">No patients found.</div>
+          ) : (
+            sortedPatients.map((patient) => {
+              const score = getScore(patient);
+              const isCritical = score >= 9;
+              return (
+                <div 
+                  key={patient.id}
+                  onClick={() => { setSelectedPatient(patient); setShowModal(true); }}
+                  className={`bg-white p-4 rounded-lg shadow-sm border border-slate-200 relative active:bg-slate-50 transition-colors ${
+                    isCritical ? 'border-l-4 border-l-red-500' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h3 className="font-bold text-slate-800">{patient.name || patient.patient_name || "Unknown"}</h3>
+                      <p className="text-xs text-slate-500 font-mono">ID: {patient.patient_id}</p>
+                    </div>
+                    <Badge variant={patient.urgent ? 'destructive' : 'secondary'}>{patient.score}</Badge>
+                  </div>
+                  
+                  <div className="flex justify-between items-center text-sm text-slate-600 mt-3">
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" /> {patient.time || "--:--"}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded text-xs border ${getStatusColor(patient.status, patient.urgent)}`}>
+                      {patient.status}
+                    </span>
+                  </div>
+
+                  {/* Mobile Action Button */}
+                  <div className="mt-4 pt-3 border-t flex justify-end">
+                    {isDoctor ? (
+                      <Button size="sm" className="w-full bg-indigo-600 h-8 text-xs" onClick={(e) => {
+                         e.stopPropagation(); 
+                         setConsultPatient(patient); 
+                         setMedsInput("");
+                         setShowConsultModal(true);
+                      }}>
+                        Consult Now
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="outline" className="w-full h-8 text-xs" onClick={(e) => {
+                         e.stopPropagation();
+                         setSelectedPatient(patient);
+                         setShowAssignModal(true);
+                      }}>
+                        Assign
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* --- DESKTOP VIEW (Table) --- */}
+        <div className="hidden md:block rounded-md border bg-white shadow-sm overflow-hidden">
           <Table>
             <TableHeader className="bg-slate-50">
               <TableRow>
                 <TableHead className="w-[100px]">Time</TableHead>
                 <TableHead>Patient</TableHead>
                 <TableHead>ID Number</TableHead>
-                <TableHead>AI Urgency Score</TableHead>
+                <TableHead>AI Urgency</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                Array.from({ length: 5 }).map((_, index) => (
+                Array.from({ length: 3 }).map((_, index) => (
                   <TableRow key={index} className="animate-pulse">
                     <TableCell><div className="h-4 w-12 bg-slate-100 rounded" /></TableCell>
                     <TableCell><div className="h-4 w-32 bg-slate-100 rounded" /></TableCell>
                     <TableCell><div className="h-4 w-20 bg-slate-100 rounded" /></TableCell>
                     <TableCell><div className="h-5 w-24 bg-slate-100 rounded-full" /></TableCell>
                     <TableCell><div className="h-4 w-16 bg-slate-100 rounded" /></TableCell>
-                    <TableCell className="text-right"><div className="h-8 w-8 bg-slate-100 rounded-full ml-auto" /></TableCell>
+                    <TableCell className="text-right"><div className="h-8 w-20 bg-slate-100 rounded ml-auto" /></TableCell>
                   </TableRow>
                 ))
               ) : sortedPatients.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center text-slate-500">
-                    No active patients in queue.
-                  </TableCell>
-                </TableRow>
-              ) : (
+  <TableRow>
+    <TableCell colSpan={6} className="h-64 text-center">
+      <div className="flex flex-col items-center justify-center opacity-50">
+        {isDoctor ? (
+          <>
+            <div className="bg-indigo-50 p-6 rounded-full mb-4">
+              <CheckCircle2 className="h-12 w-12 text-indigo-400" />
+            </div>
+            <h3 className="text-lg font-medium text-slate-700">All Caught Up!</h3>
+            <p className="text-sm text-slate-500">You have no active consultations.</p>
+          </>
+        ) : (
+          <>
+            <div className="bg-slate-100 p-6 rounded-full mb-4">
+              <UserRound className="h-12 w-12 text-slate-400" />
+            </div>
+            <h3 className="text-lg font-medium text-slate-700">Waiting Room Empty</h3>
+            <p className="text-sm text-slate-500">Waiting for new check-ins...</p>
+          </>
+        )}
+      </div>
+    </TableCell>
+  </TableRow>
+) : (
                 sortedPatients.map((patient, i) => {
                   const score = getScore(patient);
                   const isCritical = score >= 9;
-                  
                   return (
                     <TableRow 
                       key={patient.id || i} 
                       className={`cursor-pointer transition-colors ${
                         isCritical ? 'bg-red-50 hover:bg-red-100 border-l-4 border-l-red-500' : 'hover:bg-slate-50'
                       }`}
-                      onClick={() => handleReview(patient)}
+                      onClick={() => { setSelectedPatient(patient); setShowModal(true); }}
                     >
                       <TableCell>
                         <div className="flex flex-col">
@@ -313,24 +485,57 @@ export default function ClinicDashboard() {
                       </TableCell>
                       
                       <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <span className={`h-2 w-2 rounded-full ${patient.urgent ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`}></span>
-                          <span className="text-xs font-medium uppercase text-slate-500">{patient.status}</span>
-                        </div>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(patient.status, patient.urgent)}`}>
+                          {patient.urgent && <span className="relative flex h-2 w-2 mr-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                          </span>}
+                          {patient.status}
+                        </span>
                       </TableCell>
                       
                       <TableCell className="text-right">
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          onClick={(e) => {
-                            e.stopPropagation(); 
-                            setConsultPatient(patient);
-                            setShowConsultModal(true);
-                          }}
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center justify-end gap-2">
+                          {isDoctor ? (
+                             <Button 
+                               size="sm"
+                               className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm h-8"
+                               onClick={(e) => {
+                                 e.stopPropagation();
+                                 setConsultPatient(patient);
+                                 setMedsInput(""); 
+                                 setShowConsultModal(true);
+                               }}
+                             >
+                               Consult
+                             </Button>
+                          ) : (
+                             <Button 
+                               size="sm"
+                               variant="outline"
+                               className="border-teal-200 text-teal-700 hover:bg-teal-50 h-8"
+                               onClick={(e) => {
+                                 e.stopPropagation();
+                                 setSelectedPatient(patient);
+                                 setShowAssignModal(true);
+                               }}
+                             >
+                               Assign
+                             </Button>
+                          )}
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={(e) => {
+                              e.stopPropagation(); 
+                              setSelectedPatient(patient);
+                              setShowModal(true);
+                            }}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -341,215 +546,311 @@ export default function ClinicDashboard() {
         </div>
       </div>
 
-      <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
-          {actionStatus === 'success' && (
-            <div className="flex flex-col items-center justify-center h-[300px] space-y-4 bg-green-50">
-              <div className="h-16 w-16 bg-green-100 rounded-full flex items-center justify-center mb-2">
-                <CheckCircle2 className="h-10 w-10 text-green-600" />
-              </div>
-              <h2 className="text-2xl font-bold text-green-800">Success!</h2>
-              <p className="text-slate-600 text-center max-w-sm">
-                Patient has been approved. Notification sent.
-              </p>
-              <div className="flex gap-3 mt-4">
-                <Button disabled className="bg-green-600 text-white opacity-100">
-                  <CheckCircle2 className="w-4 h-4 mr-2" /> Confirmed
-                </Button>
-                <Button 
-                  variant="outline"
-                  onClick={() => selectedPatient && vitalsMutation.mutate(selectedPatient.id)}
-                  disabled={vitalsMutation.isPending}
-                  className="border-teal-200 text-teal-700 hover:bg-teal-50"
-                >
-                  {vitalsMutation.isPending ? "Requesting..." : "Request Vitals"}
-                </Button>
-                <Button variant="ghost" onClick={handleClose}>Close</Button>
-              </div>
-            </div>
-          )}
-
-          {actionStatus === 'error' && (
-             <div className="flex flex-col items-center justify-center h-[300px] space-y-4 bg-red-50">
-              <div className="h-16 w-16 bg-red-100 rounded-full flex items-center justify-center mb-2">
-                <AlertCircle className="h-10 w-10 text-red-600" />
-              </div>
-              <h2 className="text-2xl font-bold text-red-800">Connection Failed</h2>
-              <p className="text-red-600 text-center max-w-sm font-medium">
-                We couldn't reach the server. Please check your connection.
-              </p>
-              <div className="flex gap-3 mt-4">
-                <Button variant="outline" onClick={handleClose} className="border-red-200 text-red-700 hover:bg-red-100">Cancel</Button>
-                <Button 
-                  onClick={() => selectedPatient && approveMutation.mutate(selectedPatient.id)} 
-                  disabled={approveMutation.isPending}
-                  className="bg-red-600 hover:bg-red-700"
-                >
-                  {approveMutation.isPending ? "Retrying..." : "Try Again"}
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {actionStatus === 'idle' && (
-            <>
-              <DialogHeader className="p-6 border-b">
-                <div className="flex justify-between items-center pr-8">
+      {/* --- MODAL 1: ASSIGN DOCTOR (Admin) --- */}
+      <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Doctor to {selectedPatient?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3 py-4">
+            <p className="text-sm text-slate-500 mb-2">Select an available doctor:</p>
+            {DOCTORS_ON_DUTY.map((doc) => (
+              <div 
+                key={doc.id} 
+                className={`p-4 border rounded-lg cursor-pointer flex justify-between items-center transition-all ${
+                  selectedDoctor.id === doc.id 
+                    ? 'border-teal-500 bg-teal-50 ring-1 ring-teal-500' 
+                    : 'hover:border-slate-300 bg-white'
+                }`}
+                onClick={() => setSelectedDoctor(doc)}
+              >
+                <div className="flex items-center">
+                  <div className={`h-10 w-10 rounded-full flex items-center justify-center mr-3 font-bold ${
+                    selectedDoctor.id === doc.id ? 'bg-teal-200 text-teal-800' : 'bg-slate-100 text-slate-500'
+                  }`}>
+                    {doc.name.charAt(4)}
+                  </div>
                   <div>
-                    <DialogTitle className="text-xl">Review Triage: {selectedPatient?.patient_name || selectedPatient?.name}</DialogTitle>
-                    <p className="text-sm text-slate-500 flex items-center mt-1">
-                      ID: {selectedPatient?.patient_id} 
-                      <span className="mx-2">•</span> 
-                      <Clock className="w-3 h-3 mr-1" /> Checked in at {selectedPatient?.time}
-                    </p>
-                  </div>
-                  {selectedPatient && (
-                    <Badge className="text-lg px-4 py-1" variant={selectedPatient.urgent ? 'destructive' : 'secondary'}>
-                      Score: {selectedPatient.score}
-                    </Badge>
-                  )}
-                </div>
-              </DialogHeader>
-
-              {selectedPatient?.status === 'Cancelled' && (
-                <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-0">
-                  <p className="font-bold flex items-center">
-                    <AlertCircle className="w-4 h-4 mr-2" />
-                    Attention: Patient Cancelled
-                  </p>
-                  <p className="text-sm">This booking was cancelled by the patient. Do not approve unless they are physically present.</p>
-                </div>
-              )}
-
-              <div className="flex flex-1 overflow-hidden h-[500px]">
-                <div className="w-1/2 p-6 border-r flex flex-col space-y-4">
-                  <h4 className="font-semibold flex items-center text-slate-700"><Stethoscope className="w-4 h-4 mr-2" /> Doctor's Assessment</h4>
-                  <div className="space-y-2 flex-1">
-                    <label className="text-xs font-medium text-slate-500">Clinical Observations</label>
-                    <Textarea 
-                      className="h-full resize-none p-4 text-sm focus:ring-teal-600 bg-slate-50" 
-                      placeholder="Enter clinical observations..." 
-                      defaultValue={`Patient flagged as ${selectedPatient?.urgent ? 'URGENT' : 'Routine'} by AI.\n\nVerify vitals immediately.`} 
-                    />
+                    <p className="font-bold text-slate-800">{doc.name}</p>
+                    <p className="text-xs text-slate-500">{doc.specialty}</p>
                   </div>
                 </div>
-
-                <div className="w-1/2 p-6 bg-sky-50/50 flex flex-col space-y-4">
-                  <h4 className="font-semibold flex items-center text-teal-800"><BrainCircuit className="w-4 h-4 mr-2" /> AI Summary (Llama 3)</h4>
-                  <div className="bg-white p-4 rounded-lg border border-sky-100 shadow-sm space-y-3 text-sm">
-                    <div>
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Reported Symptoms</span>
-                      <p className="text-slate-700 mt-1 italic">"{selectedPatient?.symptoms || "Symptoms reported via Triage Chat"}"</p>
-                    </div>
-                    <div className="pt-2 border-t border-slate-100">
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">AI Reasoning</span>
-                      <p className="text-slate-700 mt-1">
-                        {getScore(selectedPatient!) >= 9 
-                          ? "High urgency detected. Keywords match critical protocol (Cardiac/Respiratory)." 
-                          : "Standard triage protocol. No immediate life-threatening keywords detected."}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Recommended Action</span>
-                      <div className="flex items-center space-x-2 mt-1 text-teal-700 font-medium">
-                        {selectedPatient?.urgent ? <AlertCircle className="w-4 h-4 text-red-500" /> : <CheckCircle2 className="w-4 h-4" />}
-                        <span>{selectedPatient?.urgent ? "Admit Immediately" : "Queue for Vitals"}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-auto bg-amber-50 p-3 rounded border border-amber-100 text-xs text-amber-800 flex items-start">
-                    <AlertCircle className="w-4 h-4 mr-2 shrink-0" />
-                    AI suggestions are for support only. Final clinical decision rests with the provider.
-                  </div>
-                </div>
+                {selectedDoctor.id === doc.id && <CheckCircle2 className="text-teal-600 w-6 h-6" />}
               </div>
-
-              <DialogFooter className="p-4 border-t bg-slate-50 flex justify-between sm:justify-between">
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={handleClose}>Close</Button>
-                  {selectedPatient?.status === 'Cancelled' && (
-                    <Button 
-                      variant="destructive"
-                      onClick={() => selectedPatient && deleteMutation.mutate(selectedPatient.id)}
-                      disabled={deleteMutation.isPending}
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      {deleteMutation.isPending ? "Removing..." : "Remove Record"}
-                    </Button>
-                  )}
-                </div>
-                <div>
-                  {selectedPatient?.status === 'Confirmed' ? (
-                    <Button disabled className="bg-green-600 text-white opacity-100">
-                      <CheckCircle2 className="w-4 h-4 mr-2" /> Confirmed
-                    </Button>
-                  ) : selectedPatient?.status === 'Cancelled' ? (
-                    <Button disabled variant="secondary" className="bg-slate-200 text-slate-500 cursor-not-allowed">
-                      🚫 Booking Cancelled
-                    </Button>
-                  ) : (
-                    <Button 
-                      className="bg-teal-600 hover:bg-teal-700" 
-                      onClick={() => selectedPatient && approveMutation.mutate(selectedPatient.id)}
-                      disabled={approveMutation.isPending}
-                    >
-                      {approveMutation.isPending ? "Confirming..." : 
-                       selectedPatient?.urgent ? "Approve Emergency Admit" : "Approve & Admit"}
-                    </Button>
-                  )}
-                </div>
-              </DialogFooter>
-            </>
-          )}
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAssignModal(false)}>Cancel</Button>
+            <Button 
+              className="bg-teal-600 hover:bg-teal-700" 
+              onClick={() => assignMutation.mutate()}
+              disabled={assignMutation.isPending}
+            >
+              {assignMutation.isPending ? "Assigning..." : "Confirm Assignment"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {/* --- MODAL 2: CONSULTATION (Doctor) --- */}
       <Dialog open={showConsultModal} onOpenChange={setShowConsultModal}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Consultation: {consultPatient?.name || consultPatient?.patient_name}</DialogTitle>
-            <p className="text-sm text-slate-500">
-              Complete this form to discharge the patient and update their records.
-            </p>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="border-b pb-4">
+            <div className="flex justify-between items-center pr-2">
+              <div>
+                <DialogTitle className="text-xl">Consultation: {consultPatient?.name || consultPatient?.patient_name}</DialogTitle>
+                <p className="text-sm text-slate-500 mt-1">ID: {consultPatient?.patient_id}</p>
+              </div>
+              <Badge variant={consultPatient?.urgent ? "destructive" : "secondary"}>Score: {consultPatient?.score}</Badge>
+            </div>
           </DialogHeader>
+
+          {/* AI Context */}
+          <div className="bg-amber-50 border border-amber-100 rounded-md p-3 flex items-start gap-3 mt-2">
+            <BrainCircuit className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="text-sm text-amber-900">
+              <span className="font-bold block mb-1">AI Triage Note:</span>
+              "{consultPatient?.symptoms || "Patient reported general malaise."}"
+            </div>
+          </div>
+
+          {/* ✨ NEW: VITALS STRIP ✨ */}
+<div className="grid grid-cols-4 gap-2 mt-3 mb-1">
+  <div className="bg-slate-50 border border-slate-100 p-2 rounded flex flex-col items-center">
+    <span className="text-[10px] text-slate-400 uppercase font-bold">Heart Rate</span>
+    <div className="flex items-center text-slate-700 font-mono font-medium">
+      <Activity className="w-3 h-3 mr-1 text-red-500 animate-pulse" /> 78 bpm
+    </div>
+  </div>
+  <div className="bg-slate-50 border border-slate-100 p-2 rounded flex flex-col items-center">
+    <span className="text-[10px] text-slate-400 uppercase font-bold">Blood Pressure</span>
+    <span className="text-slate-700 font-mono font-medium">120/80</span>
+  </div>
+  <div className="bg-slate-50 border border-slate-100 p-2 rounded flex flex-col items-center">
+    <span className="text-[10px] text-slate-400 uppercase font-bold">Temp</span>
+    <span className="text-slate-700 font-mono font-medium">36.5°C</span>
+  </div>
+  <div className="bg-slate-50 border border-slate-100 p-2 rounded flex flex-col items-center">
+    <span className="text-[10px] text-slate-400 uppercase font-bold">O2 Sat</span>
+    <span className="text-slate-700 font-mono font-medium">98%</span>
+  </div>
+</div>
+
           <form 
-  className="space-y-4 py-4"
-  onSubmit={(e) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    if (consultPatient) {
-      createRecordMutation.mutate({
-        patient_id: consultPatient?.patient_id,
-        patient_name: consultPatient?.name || consultPatient?.patient_name || "Unknown", // <--- ADD THIS
-        doc_id: consultPatient?.id,
-        diagnosis: formData.get('diagnosis'),
-        meds: formData.get('meds'),
-        notes: formData.get('notes'),
-      });
+            className="space-y-5 py-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              if (consultPatient) {
+                createRecordMutation.mutate({
+                  patient_id: consultPatient?.patient_id,
+                  patient_name: consultPatient?.name || consultPatient?.patient_name || "Unknown",
+                  doc_id: consultPatient?.id,
+                  diagnosis: formData.get('diagnosis'),
+                  meds: medsInput,
+                  notes: formData.get('notes'),
+                });
               }
             }}
           >
             <div className="space-y-2">
               <label className="text-sm font-medium">Diagnosis</label>
-              <Input name="diagnosis" placeholder="e.g. Upper Respiratory Infection" required />
+              <Input name="diagnosis" placeholder="e.g. Acute Bronchitis" required />
             </div>
+            
             <div className="space-y-2">
-              <label className="text-sm font-medium">Medication (Comma separated)</label>
-              <Input name="meds" placeholder="e.g. Amoxicillin 500mg, Panado" required />
+              <label className="text-sm font-medium flex justify-between">
+                Prescription <span className="text-xs text-slate-400 font-normal">Comma separated</span>
+              </label>
+              <Input name="meds" value={medsInput} onChange={(e) => setMedsInput(e.target.value)} placeholder="e.g. Amoxicillin 500mg" required />
+              <div className="flex gap-2 pt-1 flex-wrap">
+                {["Panado (PRN)", "Amoxicillin 500mg", "Vit B Co"].map((script) => (
+                  <button key={script} type="button" onClick={() => addQuickScript(script)} className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded border">
+                    + {script}
+                  </button>
+                ))}
+              </div>
             </div>
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Clinical Notes</label>
-              <Textarea name="notes" placeholder="Patient observations..." required />
+              <Textarea name="notes" placeholder="Observations..." required className="h-24" />
             </div>
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowConsultModal(false)}>Cancel</Button>
-              <Button type="submit" className="bg-teal-600 hover:bg-teal-700" disabled={createRecordMutation.isPending}>
-                {createRecordMutation.isPending ? "Discharging..." : "Save & Discharge"}
+              <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white" disabled={createRecordMutation.isPending}>
+                {createRecordMutation.isPending ? "Discharging..." : "Complete & Discharge"}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* --- MODAL 3: VIEW DETAILS (Rich Split Layout, Responsive) --- */}
+      <Dialog open={showModal} onOpenChange={setShowModal}>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+          
+          {/* HEADER */}
+          <DialogHeader className="p-6 border-b bg-white shrink-0">
+            <div className="flex flex-col md:flex-row justify-between md:items-center gap-2 pr-8">
+            
+
+{/* ✨ NEW: JOURNEY TRACKER ✨ */}
+<div className="mt-4 flex items-center w-full max-w-md">
+  {/* Step 1: Triage */}
+  <div className="flex flex-col items-center">
+    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+      true ? 'bg-teal-600 text-white' : 'bg-slate-200'
+    }`}>1</div>
+    <span className="text-[10px] mt-1 font-medium text-teal-700">Triage</span>
+  </div>
+  
+  <div className={`flex-1 h-1 mx-2 ${selectedPatient?.status !== 'Pending Approval' ? 'bg-teal-600' : 'bg-slate-200'}`} />
+
+  {/* Step 2: Assigned */}
+  <div className="flex flex-col items-center">
+    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+      selectedPatient?.doctor_id ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500'
+    }`}>2</div>
+    <span className={`text-[10px] mt-1 font-medium ${selectedPatient?.doctor_id ? 'text-indigo-700' : 'text-slate-400'}`}>Assigned</span>
+  </div>
+
+  <div className={`flex-1 h-1 mx-2 bg-slate-200`} />
+
+  {/* Step 3: Discharge */}
+  <div className="flex flex-col items-center">
+    <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-500">3</div>
+    <span className="text-[10px] mt-1 font-medium text-slate-400">Discharge</span>
+  </div>
+</div>
+              <div>
+                <DialogTitle className="text-xl font-bold text-slate-800">
+                  Review Triage: {selectedPatient?.name || selectedPatient?.patient_name}
+                </DialogTitle>
+                <div className="flex items-center text-sm text-slate-500 mt-1 gap-2 flex-wrap">
+                  <span 
+                    className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-xs border cursor-pointer hover:bg-slate-200 transition-colors flex items-center" 
+                    title="Click to copy ID" 
+                    onClick={() => { navigator.clipboard.writeText(selectedPatient?.patient_id || ""); toast.success("ID Copied to clipboard"); }}
+                  >
+                    <Copy className="w-3 h-3 inline mr-1 opacity-50"/>
+                    ID: {selectedPatient?.patient_id}
+                  </span>
+                  <span className="hidden md:inline">•</span>
+                  <span className="flex items-center">
+                    <Clock className="w-3 h-3 mr-1" /> Checked in at {selectedPatient?.time}
+                  </span>
+                </div>
+              </div>
+              {selectedPatient && (
+                <Badge className="text-lg px-4 py-1 shadow-sm w-fit" variant={selectedPatient.urgent ? 'destructive' : 'secondary'}>
+                  Score: {selectedPatient.score}
+                </Badge>
+              )}
+            </div>
+          </DialogHeader>
+
+          {/* TWO COLUMN BODY (Responsive Stacking) */}
+          {/* Mobile: Stack vertically, scroll whole body. Desktop: Row, scroll columns if needed */}
+          <div className="flex flex-col md:flex-row flex-1 overflow-y-auto">
+            
+            {/* LEFT: DOCTOR'S ASSESSMENT */}
+            <div className="w-full md:w-1/2 p-6 border-b md:border-b-0 md:border-r flex flex-col space-y-4 bg-white shrink-0">
+              <h4 className="font-semibold flex items-center text-slate-700">
+                <Stethoscope className="w-4 h-4 mr-2" /> Doctor's Assessment
+              </h4>
+              <div className="space-y-2 flex-1 flex flex-col">
+                <label className="text-xs font-medium text-slate-500">Clinical Observations</label>
+                <Textarea 
+                  className={`flex-1 min-h-[150px] md:h-auto resize-none p-4 text-sm bg-slate-50 focus:ring-teal-600 ${!isDoctor ? 'opacity-80 bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`} 
+                  placeholder={isDoctor ? "Enter your clinical observations here..." : "Doctor's notes will appear here."}
+                  disabled={!isDoctor} 
+                  defaultValue={`Patient flagged as ${selectedPatient?.urgent ? 'URGENT' : 'Routine'} by AI.\n\nVerify vitals immediately.`} 
+                />
+              </div>
+            </div>
+
+            {/* RIGHT: AI SUMMARY */}
+            <div className="w-full md:w-1/2 p-6 bg-sky-50/50 flex flex-col space-y-4">
+              <h4 className="font-semibold flex items-center text-teal-800">
+                <BrainCircuit className="w-4 h-4 mr-2" /> AI Summary (Llama 3)
+              </h4>
+              
+              <div className="bg-white p-5 rounded-lg border border-sky-100 shadow-sm space-y-4 text-sm">
+                <div>
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Reported Symptoms</span>
+                  <p className="text-slate-800 mt-1 font-medium italic">"{selectedPatient?.symptoms || "Symptoms reported via Triage Chat"}"</p>
+                </div>
+                
+                <div className="pt-3 border-t border-slate-100">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">AI Reasoning</span>
+                  <p className="text-slate-600 mt-1 leading-relaxed">
+                    {getScore(selectedPatient!) >= 9 
+                      ? "High urgency detected. Keywords match critical protocol (Cardiac/Respiratory). Recommended immediate escalation." 
+                      : "Standard triage protocol. No immediate life-threatening keywords detected. Patient appears stable."}
+                  </p>
+                </div>
+                
+                <div className="pt-3 border-t border-slate-100">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Recommended Action</span>
+                  <div className="flex items-center space-x-2 mt-2 text-teal-700 font-bold bg-teal-50 p-2 rounded border border-teal-100">
+                    {selectedPatient?.urgent ? <AlertCircle className="w-4 h-4 text-red-500" /> : <CheckCircle2 className="w-4 h-4" />}
+                    <span className={selectedPatient?.urgent ? "text-red-700" : ""}>
+                      {selectedPatient?.urgent ? "Admit Immediately" : "Queue for Vitals & Consult"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-auto bg-amber-50 p-3 rounded border border-amber-100 text-xs text-amber-800 flex items-start">
+                <AlertCircle className="w-4 h-4 mr-2 shrink-0" />
+                AI suggestions are for support only. Final clinical decision rests with the provider.
+              </div>
+            </div>
+          </div>
+
+          {/* FOOTER */}
+          <DialogFooter className="p-4 border-t bg-slate-50 flex flex-wrap gap-2 justify-between sm:justify-between shrink-0">
+             <div className="flex gap-2">
+               {/* Only Admins can Remove from here */}
+               {!isDoctor && (
+                 <Button 
+                   variant="destructive" 
+                   onClick={() => selectedPatient && deleteMutation.mutate(selectedPatient.id)}
+                 >
+                   <Trash2 className="w-4 h-4 mr-2" /> Remove
+                 </Button>
+               )}
+             </div>
+             
+             <div className="flex gap-2 w-full sm:w-auto">
+               <Button variant="outline" className="flex-1 sm:flex-none" onClick={handleClose}>Close</Button>
+               
+               {/* Clinic Admin Action: Assign */}
+               {!isDoctor && selectedPatient?.status !== 'Completed' && (
+                 <Button 
+                   className="bg-teal-600 hover:bg-teal-700 flex-1 sm:flex-none" 
+                   onClick={() => { setShowModal(false); setShowAssignModal(true); }}
+                 >
+                   Assign Doctor
+                 </Button>
+               )}
+
+               {/* Doctor Action: Go to Consult */}
+               {isDoctor && (
+                 <Button 
+                   className="bg-indigo-600 hover:bg-indigo-700 text-white flex-1 sm:flex-none" 
+                   onClick={() => { setShowModal(false); setConsultPatient(selectedPatient); setShowConsultModal(true); }}
+                 >
+                   Start Consultation
+                 </Button>
+               )}
+             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }

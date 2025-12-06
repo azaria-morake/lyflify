@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Search, User, Calendar, FileText, ChevronRight, History } from 'lucide-react';
+import { Search, User, Calendar, FileText, ChevronRight, History } from 'lucide-react'; // Added icons
 import api from '../../lib/api';
 import { Input } from '../../components/ui/input';
 import { Button } from '../../components/ui/button';
@@ -15,7 +15,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 
-// --- API FETCHERS ---
+// ... (Keep existing fetchers: fetchPatients, fetchPatientHistory) ...
 const fetchPatients = async () => {
   const response = await api.get('/records/all-patients');
   return response.data;
@@ -30,13 +30,11 @@ export default function ClinicPatients() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
 
-  // 1. Get List of Patients
   const { data: patients, isLoading } = useQuery({
     queryKey: ['allPatients'],
     queryFn: fetchPatients,
   });
 
-  // 2. Get History for Selected Patient (Enabled only when clicked)
   const { data: history, isLoading: loadingHistory } = useQuery({
     queryKey: ['patientHistory', selectedPatientId],
     queryFn: () => fetchPatientHistory(selectedPatientId!),
@@ -51,7 +49,7 @@ export default function ClinicPatients() {
   return (
     <div className="flex flex-col h-full bg-slate-50">
       {/* Header */}
-      <header className="h-16 bg-white border-b flex items-center justify-between px-6 sticky top-0 z-10">
+      <header className="h-16 bg-white border-b flex items-center justify-between px-6 sticky top-0 z-10 shrink-0">
         <h2 className="text-lg font-semibold text-slate-800 flex items-center">
           <User className="w-5 h-5 mr-2 text-teal-600" />
           Patient Registry
@@ -59,7 +57,7 @@ export default function ClinicPatients() {
         <div className="relative">
           <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
           <Input 
-            className="pl-9 w-64 bg-slate-50" 
+            className="pl-9 w-48 md:w-64 bg-slate-50" 
             placeholder="Search registry..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -67,9 +65,49 @@ export default function ClinicPatients() {
         </div>
       </header>
 
-      {/* Patient List */}
-      <div className="p-6 overflow-auto flex-1">
-        <div className="rounded-md border bg-white shadow-sm overflow-hidden">
+      {/* Content */}
+      <div className="p-4 md:p-6 overflow-auto flex-1">
+        
+        {/* --- MOBILE VIEW: CARDS (Visible md:hidden) --- */}
+        <div className="md:hidden space-y-3">
+          {isLoading ? (
+             <div className="text-center text-slate-400 py-10">Loading Registry...</div>
+          ) : filteredPatients?.length === 0 ? (
+             <div className="text-center text-slate-400 py-10">No records found.</div>
+          ) : (
+            filteredPatients.map((p: any, i: number) => (
+              <div 
+                key={i} 
+                onClick={() => setSelectedPatientId(p.patient_id)}
+                className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 active:bg-slate-50 transition-colors"
+              >
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <h3 className="font-bold text-slate-800 text-lg">{p.patient_name}</h3>
+                    <p className="text-xs text-slate-500 font-mono">ID: {p.patient_id}</p>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-slate-300" />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="bg-slate-50 p-2 rounded border border-slate-100">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Last Diagnosis</span>
+                    <span className="text-slate-700 font-medium">{p.last_diagnosis}</span>
+                  </div>
+                  <div className="bg-slate-50 p-2 rounded border border-slate-100">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Last Visit</span>
+                    <span className="text-slate-700 font-medium flex items-center">
+                      <Calendar className="w-3 h-3 mr-1 text-teal-500" /> {p.last_visit}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* --- DESKTOP VIEW: TABLE (Visible hidden md:block) --- */}
+        <div className="hidden md:block rounded-md border bg-white shadow-sm overflow-hidden">
           <Table>
             <TableHeader className="bg-slate-50">
               <TableRow>
@@ -117,9 +155,9 @@ export default function ClinicPatients() {
         </div>
       </div>
 
-      {/* History Sheet (Right Sidebar) */}
+      {/* History Sheet (Responsive Width) */}
       <Sheet open={!!selectedPatientId} onOpenChange={() => setSelectedPatientId(null)}>
-        <SheetContent className="sm:max-w-md overflow-y-auto">
+        <SheetContent className="w-[90%] sm:max-w-md overflow-y-auto"> {/* Changed width for mobile */}
           <SheetHeader className="mb-6">
             <SheetTitle>Medical History</SheetTitle>
             <SheetDescription>

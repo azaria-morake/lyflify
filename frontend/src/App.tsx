@@ -10,25 +10,31 @@ import ClinicDashboard from '@/pages/clinic/Dashboard';
 import PatientRecords from '@/pages/patient/Records';
 import ClinicAnalytics from '@/pages/clinic/Analytics';
 import ClinicPatients from '@/pages/clinic/Patients';
+import { Toaster } from 'sonner';
 
-const queryClient = new QueryClient(); // Initialize client
+const queryClient = new QueryClient();
 
 function App() {
   const user = useAuthStore((state) => state.user);
 
+  const isStaff = user?.role === 'CLINIC' || user?.role === 'DOCTOR';
+  const isPatient = user?.role === 'PATIENT';
+
   return (
-   <QueryClientProvider client={queryClient}> {/* WRAPPER 1 */}
+   <QueryClientProvider client={queryClient}>
+    <Toaster position="top-center" richColors />
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
 
         <Route path="/" element={
           !user ? <Navigate to="/login" /> : 
-          user.role === 'PATIENT' ? <PatientLayout /> : 
-          <ClinicLayout />
+          isPatient ? <PatientLayout /> : 
+          isStaff ? <ClinicLayout /> : 
+          <Navigate to="/login" /> // Fallback: If role is weird, kick to login
         }>
           {/* Nested Routes */}
-          {user?.role === 'PATIENT' && (
+          {isPatient && (
           <>
             <Route index element={<PatientHome />} />
             <Route path="triage" element={<TriageChat />} />
@@ -36,7 +42,7 @@ function App() {
           </>
           )}
 
-          {user?.role === 'PROVIDER' && (
+          {isStaff && (
              <>
                <Route index element={<ClinicDashboard />} />
                <Route path="analytics" element={<ClinicAnalytics />} />
@@ -46,7 +52,7 @@ function App() {
         </Route>
       </Routes>
     </BrowserRouter>
-   </QueryClientProvider> // WRAPPER 1
+   </QueryClientProvider>
   );
 }
 
