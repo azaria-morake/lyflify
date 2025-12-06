@@ -71,3 +71,25 @@ def seed_database():
     ]
     seed_queue(dummy_data)
     return {"message": "Database seeded with demo data"}
+
+
+@app.post("/reset-demo")
+def reset_demo_state():
+    """
+    EMERGENCY BUTTON: Deletes all 'records' and 'queue' data 
+    and reseeds the initial demo patients.
+    """
+    # 1. Delete Queue
+    queue_ref = db.collection('queue')
+    for doc in queue_ref.stream():
+        doc.reference.delete()
+
+    # 2. Delete Records
+    records_ref = db.collection('records')
+    for doc in records_ref.stream():
+        doc.reference.delete()
+
+    # 3. Seed Fresh Data
+    seed_database() # Call your existing seed function
+    
+    return {"status": "Clean Slate", "message": "Ready for live demo."}

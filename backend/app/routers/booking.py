@@ -1,10 +1,10 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from datetime import datetime, timedelta
-# Import the new functions we just created
 from app.services.firebase import add_to_queue, update_booking_by_doc_id, delete_booking, get_queue
-# Ensure db is imported if you need direct access, or rely on services
-from app.services.firebase import db 
+from app.services.firebase import db
+from typing import Optional
+
 
 router = APIRouter()
 
@@ -17,6 +17,7 @@ class BookingRequest(BaseModel):
 class StatusUpdateRequest(BaseModel):
     doc_id: str
     action: str # "approve", "cancel", "delete", "vitals"
+    payload: Optional[dict] = None
 
 @router.post("/create")
 async def create_booking(request: BookingRequest):
@@ -62,17 +63,15 @@ async def update_booking_status(request: StatusUpdateRequest):
     """
     Handles Doctor Approvals, Patient Cancellations, and Deletions
     """
-    if request.action == "approve":
-        assigned_time = (datetime.now() + timedelta(minutes=30)).strftime("%H:%M")
-        
+    if request.action == "assign":
+        # New Logic: Assign to specific doctor
         success = update_booking_by_doc_id(request.doc_id, {
-            "status": "Confirmed",
-            "time": assigned_time
+            "status": "Waiting for Doctor",
+            "doctor_id": request.payload.get("doctor_id"), # You'll need to pass this
+            "doctor_name": request.payload.get("doctor_name"),
+            "time": (datetime.now() + timedelta(minutes=15)).strftime("%H:%M") 
         })
-        if not success:
-            raise HTTPException(status_code=404, detail="Booking not found")
-            
-        return {"status": "approved", "time": assigned_time}
+        return {"status": "assigned"}
     
     # NEW: Updates status to 'Cancelled' (Does NOT delete yet)
     elif request.action == "cancel":
@@ -93,3 +92,5 @@ async def update_booking_status(request: StatusUpdateRequest):
             raise HTTPException(status_code=500, detail=str(e))
         
     return {"status": "no_action"}
+
+
