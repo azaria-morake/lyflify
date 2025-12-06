@@ -29,8 +29,10 @@ async def explain_record(request: ExplainRequest):
     explanation = explain_prescription(request.diagnosis, request.meds, request.notes)
     return {"explanation": explanation}
 
+# --- CORRECT DEFINITION (Only One Version) ---
 class CreateRecordRequest(BaseModel):
     patient_id: str
+    patient_name: str  # <--- Essential for the Registry
     doctor_name: str
     diagnosis: str
     meds: List[str]
@@ -42,34 +44,8 @@ async def create_new_record(request: CreateRecordRequest):
     
     record_data = {
         "patient_id": request.patient_id,
-        "date": datetime.now().strftime("%d %b %Y"), # e.g. "05 Dec 2024"
-        "doctor": request.doctor_name,
-        "diagnosis": request.diagnosis,
-        "meds": request.meds,
-        "notes": request.notes,
-        "type": "Consultation"
-    }
-    
-    add_patient_record(record_data)
-    
-    return {"status": "success", "message": "Record created"}
-
-
-class CreateRecordRequest(BaseModel):
-    patient_id: str
-    patient_name: str  # <--- NEW FIELD
-    doctor_name: str
-    diagnosis: str
-    meds: List[str]
-    notes: str
-
-@router.post("/create")
-async def create_new_record(request: CreateRecordRequest):
-    """Doctor submits a new record"""
-    
-    record_data = {
-        "patient_id": request.patient_id,
-        "patient_name": request.patient_name, # <--- SAVE IT
+        "patient_name": request.patient_name, 
+        # CRITICAL: Use ISO format (YYYY-MM-DD) so 2025 > 2024
         "date": datetime.now().strftime("%Y-%m-%d"), 
         "doctor": request.doctor_name,
         "diagnosis": request.diagnosis,
