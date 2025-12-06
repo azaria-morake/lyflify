@@ -25,10 +25,13 @@ export default function ClinicLayout() {
           <nav className="space-y-1">
             <Link to="/">
               <SidebarItem icon={<LayoutDashboard size={20} />} label="Live Queue" active={location.pathname === "/"} />
+  
             </Link>
+
             
-            {/* "Patients" is a placeholder for now */}
-            <SidebarItem icon={<Users size={20} />} label="Patients" />
+            <Link to="/patients"> {/* Add Link */}
+    <SidebarItem icon={<Users size={20} />} label="Patients" active={location.pathname === "/patients"} />
+  </Link>
             
             <Link to="/analytics">
               <SidebarItem icon={<Activity size={20} />} label="Analytics" active={location.pathname === "/analytics"} />

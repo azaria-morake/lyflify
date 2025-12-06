@@ -133,11 +133,13 @@ export default function ClinicDashboard() {
     mutationFn: async (data: any) => {
       await api.post('/records/create', {
         patient_id: data.patient_id,
-        doctor_name: "Dr. Nkosi",
+        patient_name: data.patient_name, // <--- Pass the name
+        doctor_name: "Dr. Nkosi", 
         diagnosis: data.diagnosis,
         meds: data.meds.split(',').map((m: string) => m.trim()),
         notes: data.notes
       });
+      
       await api.post('/booking/update', { doc_id: data.doc_id, action: "delete" });
     },
     onSuccess: () => setShowConsultModal(false)
@@ -511,18 +513,19 @@ export default function ClinicDashboard() {
             </p>
           </DialogHeader>
           <form 
-            className="space-y-4 py-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const formData = new FormData(e.currentTarget);
-              if (consultPatient) {
-                createRecordMutation.mutate({
-                  patient_id: consultPatient.patient_id,
-                  doc_id: consultPatient.id,
-                  diagnosis: formData.get('diagnosis'),
-                  meds: formData.get('meds'),
-                  notes: formData.get('notes'),
-                });
+  className="space-y-4 py-4"
+  onSubmit={(e) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    if (consultPatient) {
+      createRecordMutation.mutate({
+        patient_id: consultPatient?.patient_id,
+        patient_name: consultPatient?.name || consultPatient?.patient_name || "Unknown", // <--- ADD THIS
+        doc_id: consultPatient?.id,
+        diagnosis: formData.get('diagnosis'),
+        meds: formData.get('meds'),
+        notes: formData.get('notes'),
+      });
               }
             }}
           >

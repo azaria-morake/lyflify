@@ -1,8 +1,8 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 from datetime import datetime
-from app.services.firebase import get_patient_records, seed_records, add_patient_record
+from app.services.firebase import get_patient_records, seed_records, add_patient_record, get_unique_patients
 from app.services.llm import explain_prescription
 
 router = APIRouter()
@@ -53,3 +53,37 @@ async def create_new_record(request: CreateRecordRequest):
     add_patient_record(record_data)
     
     return {"status": "success", "message": "Record created"}
+
+
+class CreateRecordRequest(BaseModel):
+    patient_id: str
+    patient_name: str # <--- Added this field
+    doctor_name: str
+    diagnosis: str
+    meds: List[str]
+    notes: str
+
+@router.post("/create")
+async def create_new_record(request: CreateRecordRequest):
+    """Doctor submits a new record"""
+    
+    record_data = {
+        "patient_id": request.patient_id,
+        "patient_name": request.patient_name, # <--- Save the name
+        "date": datetime.now().strftime("%d %b %Y"), 
+        "doctor": request.doctor_name,
+        "diagnosis": request.diagnosis,
+        "meds": request.meds,
+        "notes": request.notes,
+        "type": "Consultation"
+    }
+    
+    add_patient_record(record_data)
+    
+    return {"status": "success", "message": "Record created"}
+
+# 2. NEW: Endpoint to get the patient registry
+@router.get("/all-patients")
+async def list_all_patients():
+    """Returns a unique list of patients who have records."""
+    return get_unique_patients()

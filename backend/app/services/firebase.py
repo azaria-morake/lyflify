@@ -123,3 +123,35 @@ def seed_records(patient_id):
         records_ref.add(data)
     
     return True
+
+
+def get_unique_patients():
+    """
+    Fetches all records and deduplicates them by patient_id 
+    to create a 'Patient Registry' view.
+    """
+    docs = db.collection('records').stream()
+    
+    # Dictionary to keep unique patients (Key = patient_id)
+    registry = {}
+    
+    for doc in docs:
+        data = doc.to_dict()
+        pid = data.get("patient_id")
+        
+        if pid:
+            # We only need the latest info or basic profile info
+            # If we haven't seen this patient yet, or if this record has a name (some old ones might not), add it
+            if pid not in registry:
+                registry[pid] = {
+                    "patient_id": pid,
+                    "patient_name": data.get("patient_name", "Unknown"),
+                    "last_visit": data.get("date"),
+                    "last_diagnosis": data.get("diagnosis"),
+                    "last_doctor": data.get("doctor")
+                }
+            else:
+                # Optional: You could compare dates here to ensure we show the MOST RECENT visit info
+                pass
+                
+    return list(registry.values())

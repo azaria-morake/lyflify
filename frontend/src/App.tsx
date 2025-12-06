@@ -9,6 +9,7 @@ import PatientHome from '@/pages/patient/Home';
 import ClinicDashboard from '@/pages/clinic/Dashboard';
 import PatientRecords from '@/pages/patient/Records';
 import ClinicAnalytics from '@/pages/clinic/Analytics';
+import ClinicPatients from '@/pages/clinic/Patients';
 
 const queryClient = new QueryClient(); // Initialize client
 
@@ -39,6 +40,7 @@ function App() {
              <>
                <Route index element={<ClinicDashboard />} />
                <Route path="analytics" element={<ClinicAnalytics />} />
+               <Route path="patients" element={<ClinicPatients />} />
              </>
           )}
         </Route>
