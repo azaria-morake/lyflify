@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { Activity, Lock, Mail, Loader2, AlertCircle } from 'lucide-react';
@@ -39,6 +39,21 @@ export default function Login() {
       setIsLoading(false);
     }
   };
+
+
+  /* I've discovered that on the live site, Render goes to sleep and takes long to fetch backend data
+   * This results in bad UX
+   * triggering the backend as soon as users open the Login page
+   * makes it wake up and smell the coffee.
+   * 
+   */
+  
+  useEffect(() => {
+    // Fire and forget - just to wake up the Render instance
+    fetch(`${import.meta.env.VITE_API_URL}/`)
+      .then(() => console.log("Server Awake!"))
+      .catch(() => console.log("Waking server..."));
+  }, []);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen w-full bg-gradient-to-br from-white via-slate-50 to-teal-50/40 p-4 relative overflow-hidden">

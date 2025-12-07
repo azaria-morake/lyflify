@@ -2,8 +2,9 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 import os
 import json
+from functools import lru_cache 
 
-# --- 1. EXISTING AUTH SETUP (UNCHANGED) ---
+# --- 1. EXISTING AUTH SETUP ---
 firebase_creds = os.getenv("FIREBASE_CREDENTIALS")
 
 if not firebase_admin._apps:
@@ -24,7 +25,29 @@ if not firebase_admin._apps:
 
 db = firestore.client()
 
-# --- 2. QUEUE FUNCTIONS ---
+# --- 2. PROMPT MANAGEMENT (NEW) ---
+
+@lru_cache(maxsize=10) 
+def get_system_prompt(prompt_id: str) -> str:
+    """
+    Fetches a raw prompt template from Firestore.
+    Includes caching to prevent excessive DB reads.
+    """
+    try:
+        doc = db.collection('system_prompts').document(prompt_id).get()
+        if doc.exists:
+            return doc.to_dict().get('text', "")
+    except Exception as e:
+        print(f"Error fetching prompt {prompt_id}: {e}")
+    
+    # Fallbacks in case Firestore is unreachable or empty
+    defaults = {
+        "triage_nurse": "You are a helpful nurse. You are speaking to {context_str}.",
+        "health_summary": "Summarize the patient health."
+    }
+    return defaults.get(prompt_id, "You are a helpful assistant.")
+
+# --- 3. QUEUE FUNCTIONS ---
 
 def get_queue():
     """Fetches all patients from Firestore"""
@@ -34,12 +57,11 @@ def get_queue():
 
 def add_to_queue(booking_data):
     """Adds a new patient to Firestore"""
-    # Fix: Return the ref so we know the ID if needed immediately (optional but good practice)
     update_time, ref = db.collection('queue').add(booking_data)
     return {**booking_data, "id": ref.id}
 
 def update_booking_by_doc_id(doc_id, updates):
-    """Updates a document directly by its Firestore ID (Prevents collisions)"""
+    """Updates a document directly by its Firestore ID"""
     try:
         doc_ref = db.collection('queue').document(doc_id)
         doc_ref.update(updates)
@@ -50,11 +72,10 @@ def update_booking_by_doc_id(doc_id, updates):
 
 def update_booking_in_db(patient_id, updates):
     """Finds a patient by ID and updates their status/time"""
-    # Query to find the document with this patient_id
     docs = db.collection('queue').where('patient_id', '==', patient_id).stream()
     for doc in docs:
         doc.reference.update(updates)
-        return True # Stop after updating the first match
+        return True 
     return False
 
 def delete_booking(patient_id):
@@ -74,32 +95,23 @@ def seed_queue(data):
         collection.add(item)
     return True
 
+# --- 4. RECORD FUNCTIONS ---
 
 def add_patient_record(data):
     """Saves a new medical record"""
-    # 1. Add to records collection
     db.collection('records').add(data)
-    
-    # 2. Future: To auto-remove from queue upon discharge
-    # We can call delete_booking(patient_id) here if we passed the ID.
     return True
 
 def get_patient_records(patient_id):
     """Fetches medical history for a patient"""
-    # Sort by date descending (newest first)
     docs = db.collection('records').where('patient_id', '==', patient_id).stream()
     records = [{**doc.to_dict(), "id": doc.id} for doc in docs]
-    
-    # IMPROVED SORT: Use 'created_at' if available, otherwise fallback to 'date'
-    # This ensures new records (with timestamps) always appear at the top
     records.sort(key=lambda x: x.get('created_at', x.get('date', '')), reverse=True)
     return records
 
 def seed_records(patient_id):
     """Seeds dummy records for the demo user if none exist"""
     records_ref = db.collection('records')
-    
-    # Demo Data
     dummy_data = [
         {
             "patient_id": patient_id,
@@ -120,31 +132,20 @@ def seed_records(patient_id):
             "type": "Check-up"
         }
     ]
-    
     for data in dummy_data:
         records_ref.add(data)
-    
     return True
-
-
-# backend/app/services/firebase.py
 
 def get_unique_patients():
     docs = db.collection('records').stream()
     registry = {}
-    
     for doc in docs:
         data = doc.to_dict()
         pid = data.get("patient_id")
-        
         if not pid: continue
-            
         name = data.get("patient_name", "Unknown")
         date = data.get("date", "0000-00-00")
-        
         should_update = False
-        
-        # Logic to pick the best record (Real name > Unknown, New Date > Old Date)
         if pid not in registry:
             should_update = True
         else:
@@ -153,7 +154,6 @@ def get_unique_patients():
                 should_update = True
             elif date > current['last_visit']:
                 should_update = True
-
         if should_update:
             registry[pid] = {
                 "patient_id": pid,
@@ -162,5 +162,4 @@ def get_unique_patients():
                 "last_diagnosis": data.get("diagnosis"),
                 "last_doctor": data.get("doctor")
             }
-                
     return sorted(list(registry.values()), key=lambda x: x['patient_name'])

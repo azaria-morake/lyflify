@@ -2,6 +2,7 @@ import os
 import json
 from groq import Groq
 from dotenv import load_dotenv
+from app.services.firebase import get_system_prompt # Import new function
 
 load_dotenv(".env.groq")
 
@@ -10,13 +11,16 @@ client = Groq(
     api_key=os.environ.get("GROQ_API_KEY"),
 )
 
-
 def get_llama_chat_response(patient_name: str, history: list, age: int = None, gender: str = None) -> dict:
     """
     Conversational Triage Engine (Nurse Nandiphiwe Persona).
+    Uses prompts stored in Firestore for real-time updates.
     """
     
-    # Context construction
+    # 1. Fetch the raw template from Firestore
+    raw_template = get_system_prompt("triage_nurse")
+    
+    # 2. Construct context variables
     context_str = f"You are speaking to {patient_name}"
     if age:
         context_str += f", who is {age} years old"
@@ -27,45 +31,15 @@ def get_llama_chat_response(patient_name: str, history: list, age: int = None, g
         context_str += f" ({gender})"
     context_str += "."
 
-    system_prompt = f"""
-    You are **Nurse Nandiphiwe**, a warm, motherly, and respectful triage nurse for LyfLify clinics in South Africa.
-    {context_str}
+    # 3. Inject variables into the template
+    try:
+        # We replace the placeholder in the Firestore string with actual data
+        system_prompt = raw_template.replace("{context_str}", context_str)
+    except Exception as e:
+        print(f"Prompt formatting error: {e}")
+        system_prompt = raw_template
 
-    --- CRITICAL RULES (READ FIRST) ---
-    1. **LANGUAGE BARRIER:** You ONLY speak English and basic SA slang ("Yebo", "Eish", "Shame"). 
-       - IF the user speaks full Vernacular (Zulu/Xhosa/Sotho): Reply EXACTLY: "Xolo (Sorry), I am still learning your language. Please can we speak in English so I can help you safely?"
-    
-    2. **RESPECT & TITLES:** - NEVER call the user "child" unless age < 18.
-       - Use "Baba", "Ma", "Sisi", "Bhuti" based on context.
-
-    --- CONVERSATION FLOW (PREVENT LOOPS) ---
-    **CHECK THE HISTORY:** Before replying, look at your *previous* message.
-    - **Did you already greet them?** -> DO NOT greet again. Ask how you can help.
-    - **Did you already flag an emergency?** (e.g., did you just say "Yoh! That is dangerous")?
-      - IF YES, and the user says "Okay", "Thanks", or "I will" -> **CALM DOWN.** Do NOT show the booking button again. Offer reassurance (e.g., "Stay calm, the doctors are ready for you.").
-      - IF YES, and the user doubts you ("Really?", "Are you sure?") -> **DOUBLE DOWN.** Show the button again. Say "Yes, I am serious. Please go now."
-
-    --- EMERGENCY OVERRIDE ---
-    - IF (User mentions "elephant on chest", "crushing chest pain", "can't breathe", "drooping face") AND (You have NOT just flagged this):
-       - STOP asking questions. Set `show_booking` = TRUE. Set `color_code` = "red".
-       - Reply: "Yoh! That is dangerous. You must see a doctor NOW."
-
-    --- STANDARD STYLE ---
-    1. **WARM OPENERS:** If the user says "Hello", reply: "Sawubona! How are you doing today? Is there anything I can help you with?" (Invite them to speak).
-    2. **EMPATHY:** If they are just venting, listen. Do NOT book.
-    3. **TRIAGE:** Only ask clarifying questions if the symptom is vague (e.g. "I hurt").
-
-    OUTPUT FORMAT (JSON ONLY):
-    {{
-      "reply_message": "String",
-      "show_booking": boolean,
-      "urgency_score": int (1-10) or null,
-      "color_code": "red"/"orange"/"green" or null,
-      "category": "Emergency"/"Urgent"/"Routine" or null,
-      "recommended_action": "Short medical advice" or null
-    }}
-    """
-
+    # 4. Build messages
     messages = [{"role": "system", "content": system_prompt}]
     for msg in history:
         messages.append({"role": msg.role, "content": msg.content})
@@ -89,8 +63,9 @@ def get_llama_chat_response(patient_name: str, history: list, age: int = None, g
     
 def explain_prescription(diagnosis: str, meds: list, notes: str) -> str:
     """
-    Translates medical jargon into simple, empathetic English/Vernacular for patients.
+    Translates medical jargon into simple, empathetic English/Vernacular.
     """
+    # Note: You can move this prompt to Firestore later as 'prescription_explainer'
     system_prompt = (
         "You are a helpful, empathetic medical assistant for a patient in a South African community clinic. "
         "Your job is to explain complex medical terms in simple, easy-to-understand English. "
@@ -110,7 +85,7 @@ def explain_prescription(diagnosis: str, meds: list, notes: str) -> str:
                 {"role": "user", "content": user_content}
             ],
             model="llama-3.1-8b-instant",
-            temperature=0.2, # Low creativity for accuracy
+            temperature=0.2, 
             max_tokens=256
         )
         return completion.choices[0].message.content
@@ -149,11 +124,9 @@ def analyze_operational_metrics(metrics: dict) -> list:
             max_tokens=256,
             response_format={"type": "json_object"}
         )
-        # Expecting: { "insights": [...] }
         return json.loads(completion.choices[0].message.content).get("insights", [])
     except Exception as e:
         print(f"LLM Error: {e}")
-        # Fallback (The Rule-Based logic)
         return [{"type": "info", "text": "AI Analysis unavailable. Using standard protocols."}]
     
 
@@ -168,22 +141,13 @@ def analyze_patient_health(records: list) -> dict:
             "tip": "Drink water and stay active."
         }
 
+    # Fetch dynamic prompt
+    system_prompt = get_system_prompt("health_summary")
+
     # Format records for the LLM
     history_text = ""
-    for r in records[:5]: # Analyze last 5 records
+    for r in records[:5]: 
         history_text += f"- {r.get('date')}: {r.get('diagnosis')} (Doc: {r.get('doctor')})\n"
-
-    system_prompt = """
-    You are Nurse Nandiphiwe, a caring personal health assistant for an elderly patient.
-    Analyze their recent medical history and provide a short, warm, and simple health update.
-    
-    OUTPUT FORMAT (JSON):
-    {
-      "status": "Stable" | "Recovering" | "Attention Needed",
-      "summary": "2 sentences explaining their health trend in simple English.",
-      "tip": "1 simple, actionable lifestyle tip (diet/exercise) based on their diagnosis."
-    }
-    """
 
     try:
         completion = client.chat.completions.create(
