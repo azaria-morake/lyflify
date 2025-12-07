@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, AlertCircle, CheckCircle2, User } from 'lucide-react';
+import { Send, Bot, AlertCircle, CheckCircle2, User, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -20,7 +20,6 @@ type Message = {
   id: number;
   role: 'user' | 'assistant';
   content: string;
-  // Optional: Only assistant messages might have this
   triageResult?: TriageData; 
 };
 
@@ -28,24 +27,48 @@ export default function TriageChat() {
   const user = useAuthStore((state) => state.user);
   const navigate = useNavigate();
   
-  const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<Message[]>([
-    { 
+  // 1. INITIALIZE FROM LOCAL STORAGE
+  const [messages, setMessages] = useState<Message[]>(() => {
+    const saved = localStorage.getItem('lyflify_chat_history');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Failed to parse chat history", e);
+      }
+    }
+    // Default Start Message
+    return [{ 
       id: 1, 
       role: 'assistant', 
       content: `Sawubona ${user?.name || "there"}! I'm Nurse Nandiphiwe. How are you feeling today?` 
-    }
-  ]);
+    }];
+  });
   
+  const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // 2. SAVE TO LOCAL STORAGE ON CHANGE
+  useEffect(() => {
+    localStorage.setItem('lyflify_chat_history', JSON.stringify(messages));
+    scrollToBottom();
+  }, [messages]);
+
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  useEffect(scrollToBottom, [messages]);
+
+  const clearChat = () => {
+    const resetMsg: Message[] = [{ 
+      id: Date.now(), 
+      role: 'assistant', 
+      content: `Sawubona! I've cleared our chat. How can I help you now?` 
+    }];
+    setMessages(resetMsg);
+    localStorage.removeItem('lyflify_chat_history');
+  };
 
   // AI Chat Mutation
   const chatMutation = useMutation({
     mutationFn: async (history: Message[]) => {
-      // 1. Format for Backend
       const apiHistory = history.map(m => ({ role: m.role, content: m.content }));
       
       const res = await api.post('/triage/assess', {
@@ -56,12 +79,10 @@ export default function TriageChat() {
       return res.data;
     },
     onSuccess: (data) => {
-      // 2. Add Bot Response
       const botMsg: Message = {
         id: Date.now(),
         role: 'assistant',
         content: data.reply_message,
-        // Only attach triage data if the AI decided to show it
         triageResult: data.show_booking ? {
           urgency_score: data.urgency_score,
           color_code: data.color_code,
@@ -80,45 +101,60 @@ export default function TriageChat() {
     }
   });
 
-  // Booking Mutation
   const bookingMutation = useMutation({
     mutationFn: async (triageData: any) => {
       await api.post('/booking/create', {
         patient_id: "demo_user",
         patient_name: user?.name || "Gogo Dlamini",
-        triage_score: triageData.color_code, // Pass the color code for simple logic
-        symptoms: messages[messages.length - 2]?.content || "Chat Consultation" // Grab last user msg
+        triage_score: triageData.color_code, 
+        symptoms: messages[messages.length - 2]?.content || "Chat Consultation"
       });
     },
-    onSuccess: () => navigate('/')
+    onSuccess: () => {
+      // Optional: Clear chat on successful booking?
+      // clearChat(); 
+      navigate('/');
+    }
   });
 
   const handleSend = () => {
     if (!input.trim()) return;
     
-    // 1. Add User Message immediately
     const userMsg: Message = { id: Date.now(), role: 'user', content: input };
     const newHistory = [...messages, userMsg];
     
     setMessages(newHistory);
     setInput('');
     
-    // 2. Send full history to AI
     chatMutation.mutate(newHistory);
   };
 
   return (
-    <div className="flex flex-col h-full md:h-[calc(100vh-5rem)] bg-slate-50 relative"> 
+    // FIX: Use 100dvh to handle mobile address bars correctly
+    <div className="flex flex-col h-[100dvh] md:h-[calc(100vh-4rem)] bg-slate-50 relative">
       
       {/* Header */}
-      <div className="bg-white border-b p-4 flex items-center shadow-sm sticky top-0 z-10">
-        <div className="bg-teal-100 p-2 rounded-full mr-3">
-          <Bot className="w-5 h-5 text-teal-700" />
+      <div className="bg-white border-b p-4 flex items-center justify-between shadow-sm sticky top-0 z-10 shrink-0">
+        <div className="flex items-center">
+          <div className="bg-teal-100 p-2 rounded-full mr-3">
+            <Bot className="w-5 h-5 text-teal-700" />
+          </div>
+          <div>
+            <h2 className="font-bold text-slate-800">Nurse Nandi</h2>
+            <p className="text-xs text-slate-500">AI Triage Assistant</p>
+          </div>
         </div>
-        <div>
-          <h2 className="font-bold text-slate-800">Nurse Nandi</h2>
-          <p className="text-xs text-slate-500">AI Triage Assistant</p>
-        </div>
+        
+        {/* Clear Chat Button */}
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={clearChat}
+          className="text-slate-400 hover:text-red-500 hover:bg-red-50"
+          title="Restart Conversation"
+        >
+          <RefreshCcw className="w-4 h-4" />
+        </Button>
       </div>
 
       {/* Chat Area */}
@@ -126,7 +162,6 @@ export default function TriageChat() {
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             
-            {/* Avatar for Bot */}
             {msg.role === 'assistant' && (
               <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center mr-2 shrink-0">
                 <Bot className="w-4 h-4 text-teal-700" />
@@ -140,7 +175,7 @@ export default function TriageChat() {
             }`}>
               <p>{msg.content}</p>
 
-              {/* --- DYNAMIC BOOKING CARD (Only if AI says so) --- */}
+              {/* BOOKING CARD */}
               {msg.triageResult && (
                 <Card className={`mt-3 border-l-4 overflow-hidden ${
                   msg.triageResult.color_code === 'red' ? 'border-l-red-500 bg-red-50' :
@@ -177,7 +212,6 @@ export default function TriageChat() {
               )}
             </div>
 
-            {/* Avatar for User */}
             {msg.role === 'user' && (
               <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center ml-2 shrink-0">
                 <User className="w-4 h-4 text-slate-500" />
@@ -186,7 +220,6 @@ export default function TriageChat() {
           </div>
         ))}
         
-        {/* Typing Indicator */}
         {chatMutation.isPending && (
           <div className="flex justify-start items-center">
              <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center mr-2">
@@ -204,12 +237,12 @@ export default function TriageChat() {
 
       {/* Input Area */}
       <div className="p-4 bg-white border-t pb-4 md:pb-8 sticky bottom-0 z-20">
-        <div className="flex gap-2 max-w-4xl mx-auto">
+      <div className="flex gap-2 max-w-4xl mx-auto">
           <Input 
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Type your message..."
+            placeholder="Type your symptoms..."
             className="flex-1 focus-visible:ring-teal-600"
             disabled={chatMutation.isPending}
           />
