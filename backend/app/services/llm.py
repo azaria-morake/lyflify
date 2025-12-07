@@ -155,3 +155,52 @@ def analyze_operational_metrics(metrics: dict) -> list:
         print(f"LLM Error: {e}")
         # Fallback (The Rule-Based logic)
         return [{"type": "info", "text": "AI Analysis unavailable. Using standard protocols."}]
+    
+
+def analyze_patient_health(records: list) -> dict:
+    """
+    Generates a personalized health summary for the patient view.
+    """
+    if not records:
+        return {
+            "status": "Good",
+            "summary": "You have no medical records yet. Stay healthy!",
+            "tip": "Drink water and stay active."
+        }
+
+    # Format records for the LLM
+    history_text = ""
+    for r in records[:5]: # Analyze last 5 records
+        history_text += f"- {r.get('date')}: {r.get('diagnosis')} (Doc: {r.get('doctor')})\n"
+
+    system_prompt = """
+    You are Nurse Nandiphiwe, a caring personal health assistant for an elderly patient.
+    Analyze their recent medical history and provide a short, warm, and simple health update.
+    
+    OUTPUT FORMAT (JSON):
+    {
+      "status": "Stable" | "Recovering" | "Attention Needed",
+      "summary": "2 sentences explaining their health trend in simple English.",
+      "tip": "1 simple, actionable lifestyle tip (diet/exercise) based on their diagnosis."
+    }
+    """
+
+    try:
+        completion = client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Patient History:\n{history_text}"}
+            ],
+            model="llama-3.1-8b-instant",
+            temperature=0.3,
+            max_tokens=200,
+            response_format={"type": "json_object"}
+        )
+        return json.loads(completion.choices[0].message.content)
+    except Exception as e:
+        print(f"LLM Error: {e}")
+        return {
+            "status": "Unknown",
+            "summary": "I am having trouble reading your file right now.",
+            "tip": "Please see a doctor if you feel unwell."
+        }

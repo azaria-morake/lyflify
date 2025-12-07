@@ -89,8 +89,10 @@ def get_patient_records(patient_id):
     # Sort by date descending (newest first)
     docs = db.collection('records').where('patient_id', '==', patient_id).stream()
     records = [{**doc.to_dict(), "id": doc.id} for doc in docs]
-    # Simple sort (assuming ISO date strings)
-    records.sort(key=lambda x: x.get('date', ''), reverse=True)
+    
+    # IMPROVED SORT: Use 'created_at' if available, otherwise fallback to 'date'
+    # This ensures new records (with timestamps) always appear at the top
+    records.sort(key=lambda x: x.get('created_at', x.get('date', '')), reverse=True)
     return records
 
 def seed_records(patient_id):
