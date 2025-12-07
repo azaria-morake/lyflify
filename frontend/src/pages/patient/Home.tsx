@@ -1,6 +1,9 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useRef } from 'react';
-import { Activity, Clock, Bot, MapPin, AlertTriangle, UserRound, CalendarClock, Hourglass, Trash2, ChevronRight, ChevronLeft, ArrowRight, XCircle, LogOut } from 'lucide-react';
+import { 
+  Activity, Clock, Bot, MapPin, AlertTriangle, UserRound, CalendarClock, 
+  Hourglass, Trash2, ChevronRight, ChevronLeft, ArrowRight, XCircle, LogOut, FileText 
+} from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/store';
 import api from '../../lib/api';
@@ -8,9 +11,17 @@ import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 
+// --- FETCHERS ---
 const fetchCarePath = async () => {
   const response = await api.get('/navigator/status/demo_user');
   return response.data;
+};
+
+// NEW: Get the latest record for the "Recent Updates" section
+const fetchRecentRecord = async () => {
+  const response = await api.get('/records/list/demo_user');
+  // Backend sorts by date desc, so [0] is the newest
+  return response.data && response.data.length > 0 ? response.data[0] : null;
 };
 
 export default function PatientHome() {
@@ -30,6 +41,13 @@ export default function PatientHome() {
     queryKey: ['carePath'],
     queryFn: fetchCarePath,
     refetchInterval: 3000, 
+  });
+
+  // NEW: Query for the latest record
+  const { data: latestRecord } = useQuery({
+    queryKey: ['latestRecord'],
+    queryFn: fetchRecentRecord,
+    refetchInterval: 5000,
   });
 
   // --- MUTATIONS ---
@@ -59,8 +77,7 @@ export default function PatientHome() {
   const hasAppointments = appointments && appointments.length > 0;
 
   return (
-    <div className="p-4 space-y-6 bg-slate-50 min-h-screen pb-24 md:pb-6"> {/* Adjusted padding */}
-      
+    <div className="p-4 space-y-6 bg-slate-50 min-h-screen pb-24 md:pb-6">
       {/* Header */}
       <header className="bg-white p-6 -mx-4 -mt-4 mb-2 border-b shadow-sm md:rounded-xl md:mx-0 md:mt-0">
         <div className="flex justify-between items-center">
@@ -70,7 +87,7 @@ export default function PatientHome() {
           </div>
           
           <div className="flex items-center gap-3">
-             {/* HIDE ON DESKTOP (md:hidden) */}
+             {/* Logout Button (Mobile Only) */}
              <Button variant="ghost" size="icon" onClick={handleLogout} className="md:hidden text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full">
                <LogOut className="w-5 h-5" />
              </Button>
@@ -98,15 +115,18 @@ export default function PatientHome() {
           )}
         </div>
 
-{/* --- CAROUSEL CONTAINER --- */}
-<div 
+        {/* --- CAROUSEL CONTAINER (Responsive Grid) --- */}
+        <div 
           ref={scrollRef}
-          className="flex overflow-x-auto gap-4 pb-4 snap-x snap-mandatory -mx-4 px-4 scrollbar-hide"
+          className="
+            flex overflow-x-auto gap-4 pb-4 snap-x snap-mandatory -mx-4 px-4 scrollbar-hide
+            md:grid md:grid-cols-2 lg:grid-cols-3 md:overflow-visible md:mx-0 md:px-0
+          "
         >
           
-          {/* 1. LOADING SKELETON (Prevents the "Pop-up" effect) */}
+          {/* 1. LOADING SKELETON */}
           {isLoading && (
-             <Card className="min-w-[90%] snap-center shadow-sm border-teal-100/50 bg-white h-[280px] animate-pulse">
+             <Card className="min-w-[90%] snap-center shadow-sm border-teal-100/50 bg-white h-[280px] animate-pulse md:w-full">
                 <CardHeader className="pb-2">
                   <div className="flex justify-between items-start">
                     <div className="h-6 w-32 bg-slate-100 rounded" />
@@ -132,7 +152,7 @@ export default function PatientHome() {
 
           {/* 2. EMPTY STATE CARD */}
           {(!hasAppointments && !isLoading) && (
-            <Card className="min-w-[90%] snap-center p-8 text-center border-dashed border-2 border-slate-200 bg-white/50">
+            <Card className="min-w-[90%] md:w-full snap-center p-8 text-center border-dashed border-2 border-slate-200 bg-white/50">
               <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <CalendarClock className="w-8 h-8 text-slate-300" />
               </div>
@@ -158,8 +178,14 @@ export default function PatientHome() {
              if (isCancelled) theme = "border-slate-200 bg-slate-100 opacity-90";
 
              return (
-              <Card key={apt.id ||i} className={`min-w-[90%] snap-center shadow-md transition-all duration-500 flex flex-col relative ${theme}`}>
-                
+              <Card 
+                key={apt.id || i} 
+                className={`
+                  min-w-[90%] snap-center shadow-md transition-all duration-500 flex flex-col relative 
+                  md:min-w-0 md:w-full md:snap-align-none 
+                  ${theme}
+                `}
+              >
                 {/* DELETE BUTTON (Top Right) */}
                 <div className="absolute top-4 right-4 z-10">
                   <Button 
@@ -174,7 +200,7 @@ export default function PatientHome() {
                 </div>
 
                 <CardHeader className="pb-2">
-                  <div className="flex justify-between items-start pr-8"> {/* Padding for delete btn */}
+                  <div className="flex justify-between items-start pr-8">
                     <CardTitle className={`text-lg ${isDelayed ? 'text-red-800' : 'text-slate-800'}`}>
                       {isPending ? "Request Sent" : isCancelled ? "Visit Cancelled" : "Current Visit"}
                     </CardTitle>
@@ -195,7 +221,16 @@ export default function PatientHome() {
                     </div>
                     <div>
                       {isPending ? (
-                        <p className="font-semibold text-slate-700 text-lg">Waiting for Approval...</p>
+                        <div className="flex flex-col">
+                          <p className="font-semibold text-slate-700 text-lg">Waiting for Approval...</p>
+                          <div className="flex items-center gap-1.5 mt-1 bg-teal-50 px-2 py-0.5 rounded text-xs text-teal-700 font-medium w-fit">
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-500"></span>
+                            </span>
+                            Live Queue: #{i + 1 + 2} {/* Fake Position for Demo */}
+                          </div>
+                        </div>
                       ) : isCancelled ? (
                         <p className="font-semibold text-slate-500 text-lg">Booking Removed</p>
                       ) : (
@@ -232,7 +267,7 @@ export default function PatientHome() {
                     <span>{apt.advice}</span>
                   </div>
 
-                  {/* Cancel Button - Hidden if already cancelled */}
+                  {/* Cancel Button */}
                   {!isCancelled && (
                     <Button 
                       variant="ghost" 
@@ -267,19 +302,38 @@ export default function PatientHome() {
         </Link>
       </div>
 
-      {/* Recent Updates */}
+      {/* --- 4. RECENT UPDATES (LIVE DATA) --- */}
       <div className="space-y-3 pb-4">
         <h3 className="font-semibold text-slate-700 px-1">Recent Updates</h3>
-        <div className="bg-white p-4 rounded-xl border flex items-center space-x-3 shadow-sm">
-          <div className="bg-blue-50 p-2 rounded-full">
-            <Bot className="w-5 h-5 text-blue-600" />
+        
+        {latestRecord ? (
+          <div className="bg-white p-4 rounded-xl border flex items-center space-x-3 shadow-sm cursor-pointer hover:border-teal-200 transition-colors" onClick={() => navigate('/records')}>
+            <div className="bg-blue-50 p-2 rounded-full">
+              <FileText className="w-5 h-5 text-blue-600" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-slate-800">
+                New Health Record Added
+                <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-800">NEW</span>
+              </p>
+              <p className="text-xs text-slate-500 truncate mt-0.5">
+                {latestRecord.diagnosis} • Treated by {latestRecord.doctor}
+              </p>
+            </div>
+            <span className="text-[10px] text-slate-400 whitespace-nowrap">{latestRecord.date}</span>
           </div>
-          <div className="flex-1">
-            <p className="text-sm font-medium">LyfLify AI Assistant</p>
-            <p className="text-xs text-slate-500 truncate">Your blood pressure results are ready...</p>
+        ) : (
+          /* Empty/Mock State if no records exist yet */
+          <div className="bg-white p-4 rounded-xl border flex items-center space-x-3 shadow-sm opacity-60">
+            <div className="bg-slate-50 p-2 rounded-full">
+              <Bot className="w-5 h-5 text-slate-400" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-slate-700">LyfLify Assistant</p>
+              <p className="text-xs text-slate-500">No recent medical updates found.</p>
+            </div>
           </div>
-          <span className="text-[10px] text-slate-400">2m ago</span>
-        </div>
+        )}
       </div>
     </div>
   );

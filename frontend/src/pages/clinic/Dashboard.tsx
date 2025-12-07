@@ -91,6 +91,7 @@ export default function ClinicDashboard() {
   const [searchQuery, setSearchQuery] = useState(""); 
   const [isLoading, setIsLoading] = useState(true);
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [actionStatus, setActionStatus] = useState<'idle' | 'success' | 'error'>('idle');
   
   // Action Modals
   const [showConsultModal, setShowConsultModal] = useState(false);
@@ -156,10 +157,11 @@ export default function ClinicDashboard() {
       });
     },
     onSuccess: () => {
+      const pName = selectedPatient?.name || selectedPatient?.patient_name || "Patient";
       setShowAssignModal(false);
       setShowModal(false); 
       toast.success("Doctor Assigned", {
-        description: `${selectedPatient?.name} assigned to ${selectedDoctor.name}.`
+        description: `${pName} assigned to ${selectedDoctor.name}.`
       });
     },
     onError: () => toast.error("Assignment Failed", { description: "Check backend logs." })
@@ -202,11 +204,27 @@ export default function ClinicDashboard() {
     }
   });
 
+  const vitalsMutation = useMutation({
+    mutationFn: async (docId: string) => {
+      await api.post('/booking/update', { doc_id: docId, action: "vitals" });
+    },
+    onSuccess: () => toast.info("Vitals Requested")
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: async (docId: string) => {
+      await api.post('/booking/update', { doc_id: docId, action: "approve" });
+    },
+    onSuccess: () => setActionStatus('success'),
+    onError: () => setActionStatus('error')
+  });
+
   // --- HELPERS ---
   const isDoctor = user?.role === 'DOCTOR';
   
   const handleClose = () => {
     setShowModal(false);
+    setTimeout(() => setActionStatus('idle'), 300); 
   };
 
   const handleReview = (patient: Patient) => {
@@ -345,6 +363,7 @@ export default function ClinicDashboard() {
             sortedPatients.map((patient) => {
               const score = getScore(patient);
               const isCritical = score >= 9;
+              const isAssigned = patient.status === 'Waiting for Doctor';
               return (
                 <div 
                   key={patient.id}
@@ -382,12 +401,18 @@ export default function ClinicDashboard() {
                         Consult Now
                       </Button>
                     ) : (
-                      <Button size="sm" variant="outline" className="w-full h-8 text-xs" onClick={(e) => {
-                         e.stopPropagation();
-                         setSelectedPatient(patient);
-                         setShowAssignModal(true);
-                      }}>
-                        Assign
+                      <Button 
+                        size="sm" 
+                        variant={isAssigned ? "secondary" : "outline"}
+                        disabled={isAssigned}
+                        className="w-full h-8 text-xs" 
+                        onClick={(e) => {
+                           e.stopPropagation();
+                           setSelectedPatient(patient);
+                           setShowAssignModal(true);
+                        }}
+                      >
+                        {isAssigned ? "Assigned" : "Assign"}
                       </Button>
                     )}
                   </div>
@@ -423,33 +448,35 @@ export default function ClinicDashboard() {
                   </TableRow>
                 ))
               ) : sortedPatients.length === 0 ? (
-  <TableRow>
-    <TableCell colSpan={6} className="h-64 text-center">
-      <div className="flex flex-col items-center justify-center opacity-50">
-        {isDoctor ? (
-          <>
-            <div className="bg-indigo-50 p-6 rounded-full mb-4">
-              <CheckCircle2 className="h-12 w-12 text-indigo-400" />
-            </div>
-            <h3 className="text-lg font-medium text-slate-700">All Caught Up!</h3>
-            <p className="text-sm text-slate-500">You have no active consultations.</p>
-          </>
-        ) : (
-          <>
-            <div className="bg-slate-100 p-6 rounded-full mb-4">
-              <UserRound className="h-12 w-12 text-slate-400" />
-            </div>
-            <h3 className="text-lg font-medium text-slate-700">Waiting Room Empty</h3>
-            <p className="text-sm text-slate-500">Waiting for new check-ins...</p>
-          </>
-        )}
-      </div>
-    </TableCell>
-  </TableRow>
-) : (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-64 text-center">
+                    <div className="flex flex-col items-center justify-center opacity-50">
+                      {isDoctor ? (
+                        <>
+                          <div className="bg-indigo-50 p-6 rounded-full mb-4">
+                            <CheckCircle2 className="h-12 w-12 text-indigo-400" />
+                          </div>
+                          <h3 className="text-lg font-medium text-slate-700">All Caught Up!</h3>
+                          <p className="text-sm text-slate-500">You have no active consultations.</p>
+                        </>
+                      ) : (
+                        <>
+                          <div className="bg-slate-100 p-6 rounded-full mb-4">
+                            <UserRound className="h-12 w-12 text-slate-400" />
+                          </div>
+                          <h3 className="text-lg font-medium text-slate-700">Waiting Room Empty</h3>
+                          <p className="text-sm text-slate-500">Waiting for new check-ins...</p>
+                        </>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
                 sortedPatients.map((patient, i) => {
                   const score = getScore(patient);
                   const isCritical = score >= 9;
+                  const isAssigned = patient.status === 'Waiting for Doctor';
+
                   return (
                     <TableRow 
                       key={patient.id || i} 
@@ -512,15 +539,16 @@ export default function ClinicDashboard() {
                           ) : (
                              <Button 
                                size="sm"
-                               variant="outline"
-                               className="border-teal-200 text-teal-700 hover:bg-teal-50 h-8"
+                               variant={isAssigned ? "secondary" : "outline"}
+                               className={isAssigned ? "bg-slate-100 text-slate-500 h-8" : "border-teal-200 text-teal-700 hover:bg-teal-50 h-8"}
+                               disabled={isAssigned}
                                onClick={(e) => {
                                  e.stopPropagation();
                                  setSelectedPatient(patient);
                                  setShowAssignModal(true);
                                }}
                              >
-                               Assign
+                               {isAssigned ? "Assigned" : "Assign"}
                              </Button>
                           )}
                           <Button 
@@ -615,26 +643,26 @@ export default function ClinicDashboard() {
           </div>
 
           {/* ✨ NEW: VITALS STRIP ✨ */}
-<div className="grid grid-cols-4 gap-2 mt-3 mb-1">
-  <div className="bg-slate-50 border border-slate-100 p-2 rounded flex flex-col items-center">
-    <span className="text-[10px] text-slate-400 uppercase font-bold">Heart Rate</span>
-    <div className="flex items-center text-slate-700 font-mono font-medium">
-      <Activity className="w-3 h-3 mr-1 text-red-500 animate-pulse" /> 78 bpm
-    </div>
-  </div>
-  <div className="bg-slate-50 border border-slate-100 p-2 rounded flex flex-col items-center">
-    <span className="text-[10px] text-slate-400 uppercase font-bold">Blood Pressure</span>
-    <span className="text-slate-700 font-mono font-medium">120/80</span>
-  </div>
-  <div className="bg-slate-50 border border-slate-100 p-2 rounded flex flex-col items-center">
-    <span className="text-[10px] text-slate-400 uppercase font-bold">Temp</span>
-    <span className="text-slate-700 font-mono font-medium">36.5°C</span>
-  </div>
-  <div className="bg-slate-50 border border-slate-100 p-2 rounded flex flex-col items-center">
-    <span className="text-[10px] text-slate-400 uppercase font-bold">O2 Sat</span>
-    <span className="text-slate-700 font-mono font-medium">98%</span>
-  </div>
-</div>
+          <div className="grid grid-cols-4 gap-2 mt-3 mb-1">
+            <div className="bg-slate-50 border border-slate-100 p-2 rounded flex flex-col items-center">
+              <span className="text-[10px] text-slate-400 uppercase font-bold">Heart Rate</span>
+              <div className="flex items-center text-slate-700 font-mono font-medium">
+                <Activity className="w-3 h-3 mr-1 text-red-500 animate-pulse" /> 78 bpm
+              </div>
+            </div>
+            <div className="bg-slate-50 border border-slate-100 p-2 rounded flex flex-col items-center">
+              <span className="text-[10px] text-slate-400 uppercase font-bold">BP</span>
+              <span className="text-slate-700 font-mono font-medium">120/80</span>
+            </div>
+            <div className="bg-slate-50 border border-slate-100 p-2 rounded flex flex-col items-center">
+              <span className="text-[10px] text-slate-400 uppercase font-bold">Temp</span>
+              <span className="text-slate-700 font-mono font-medium">36.5°C</span>
+            </div>
+            <div className="bg-slate-50 border border-slate-100 p-2 rounded flex flex-col items-center">
+              <span className="text-[10px] text-slate-400 uppercase font-bold">O2 Sat</span>
+              <span className="text-slate-700 font-mono font-medium">98%</span>
+            </div>
+          </div>
 
           <form 
             className="space-y-5 py-4"
@@ -694,36 +722,6 @@ export default function ClinicDashboard() {
           {/* HEADER */}
           <DialogHeader className="p-6 border-b bg-white shrink-0">
             <div className="flex flex-col md:flex-row justify-between md:items-center gap-2 pr-8">
-            
-
-{/* ✨ NEW: JOURNEY TRACKER ✨ */}
-<div className="mt-4 flex items-center w-full max-w-md">
-  {/* Step 1: Triage */}
-  <div className="flex flex-col items-center">
-    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-      true ? 'bg-teal-600 text-white' : 'bg-slate-200'
-    }`}>1</div>
-    <span className="text-[10px] mt-1 font-medium text-teal-700">Triage</span>
-  </div>
-  
-  <div className={`flex-1 h-1 mx-2 ${selectedPatient?.status !== 'Pending Approval' ? 'bg-teal-600' : 'bg-slate-200'}`} />
-
-  {/* Step 2: Assigned */}
-  <div className="flex flex-col items-center">
-    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
-      selectedPatient?.doctor_id ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500'
-    }`}>2</div>
-    <span className={`text-[10px] mt-1 font-medium ${selectedPatient?.doctor_id ? 'text-indigo-700' : 'text-slate-400'}`}>Assigned</span>
-  </div>
-
-  <div className={`flex-1 h-1 mx-2 bg-slate-200`} />
-
-  {/* Step 3: Discharge */}
-  <div className="flex flex-col items-center">
-    <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-500">3</div>
-    <span className="text-[10px] mt-1 font-medium text-slate-400">Discharge</span>
-  </div>
-</div>
               <div>
                 <DialogTitle className="text-xl font-bold text-slate-800">
                   Review Triage: {selectedPatient?.name || selectedPatient?.patient_name}
@@ -749,11 +747,39 @@ export default function ClinicDashboard() {
                 </Badge>
               )}
             </div>
+
+            {/* JOURNEY TRACKER */}
+            <div className="mt-4 flex items-center w-full max-w-md">
+              {/* Step 1: Triage */}
+              <div className="flex flex-col items-center">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                  true ? 'bg-teal-600 text-white' : 'bg-slate-200'
+                }`}>1</div>
+                <span className="text-[10px] mt-1 font-medium text-teal-700">Triage</span>
+              </div>
+              
+              <div className={`flex-1 h-1 mx-2 ${selectedPatient?.status !== 'Pending Approval' ? 'bg-teal-600' : 'bg-slate-200'}`} />
+
+              {/* Step 2: Assigned */}
+              <div className="flex flex-col items-center">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+                  selectedPatient?.doctor_id ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500'
+                }`}>2</div>
+                <span className={`text-[10px] mt-1 font-medium ${selectedPatient?.doctor_id ? 'text-indigo-700' : 'text-slate-400'}`}>Assigned</span>
+              </div>
+
+              <div className={`flex-1 h-1 mx-2 bg-slate-200`} />
+
+              {/* Step 3: Discharge */}
+              <div className="flex flex-col items-center">
+                <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-500">3</div>
+                <span className="text-[10px] mt-1 font-medium text-slate-400">Discharge</span>
+              </div>
+            </div>
           </DialogHeader>
 
           {/* TWO COLUMN BODY (Responsive Stacking) */}
-          {/* Mobile: Stack vertically, scroll whole body. Desktop: Row, scroll columns if needed */}
-          <div className="flex flex-col md:flex-row flex-1 overflow-y-auto">
+          <div className="flex flex-col md:flex-row flex-1 overflow-y-auto md:overflow-hidden h-auto md:h-[500px]">
             
             {/* LEFT: DOCTOR'S ASSESSMENT */}
             <div className="w-full md:w-1/2 p-6 border-b md:border-b-0 md:border-r flex flex-col space-y-4 bg-white shrink-0">
@@ -772,7 +798,7 @@ export default function ClinicDashboard() {
             </div>
 
             {/* RIGHT: AI SUMMARY */}
-            <div className="w-full md:w-1/2 p-6 bg-sky-50/50 flex flex-col space-y-4">
+            <div className="w-full md:w-1/2 p-6 bg-sky-50/50 flex flex-col space-y-4 overflow-visible md:overflow-y-auto">
               <h4 className="font-semibold flex items-center text-teal-800">
                 <BrainCircuit className="w-4 h-4 mr-2" /> AI Summary (Llama 3)
               </h4>
@@ -831,9 +857,10 @@ export default function ClinicDashboard() {
                {!isDoctor && selectedPatient?.status !== 'Completed' && (
                  <Button 
                    className="bg-teal-600 hover:bg-teal-700 flex-1 sm:flex-none" 
+                   disabled={selectedPatient?.status === 'Waiting for Doctor'} // Disabled if assigned
                    onClick={() => { setShowModal(false); setShowAssignModal(true); }}
                  >
-                   Assign Doctor
+                   {selectedPatient?.status === 'Waiting for Doctor' ? "Assigned" : "Assign Doctor"}
                  </Button>
                )}
 
