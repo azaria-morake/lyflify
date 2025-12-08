@@ -103,7 +103,7 @@ export default function PatientHome() {
       <header className="bg-white p-6 -mx-4 -mt-4 mb-2 border-b shadow-sm md:rounded-xl md:mx-0 md:mt-0">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">Sawubona, Gogo</h1>
+            <h1 className="text-2xl font-bold text-slate-800">Sawubona, Thabo</h1>
             <p className="text-slate-500 text-sm">Welcome back to LyfLify</p>
           </div>
           <div className="flex items-center gap-3">
@@ -329,7 +329,7 @@ export default function PatientHome() {
             </div>
             <div className="flex-1">
               <p className="text-sm font-medium text-slate-700">LyfLify Assistant</p>
-              <p className="text-xs text-slate-500">No recent medical updates found.</p>
+              <p className="text-xs text-slate-500">Records loading. Please wait for server response.</p>
             </div>
           </div>
         )}

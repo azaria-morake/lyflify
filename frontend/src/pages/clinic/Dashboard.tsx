@@ -25,6 +25,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { toast } from 'sonner';
+import { ServerStatus } from '@/components/custom/ServerStatus'; // <--- IMPORT ADDED
 
 // --- MOCK DOCTORS LIST ---
 const DOCTORS_ON_DUTY = [
@@ -231,7 +232,7 @@ export default function ClinicDashboard() {
           <div className="md:hidden">
             <Sheet>
               <SheetTrigger asChild>
-                {/* --- FIXED NOTIFICATION BELL --- */}
+                {/* FIX: Added 'relative' class to properly position the red dot */}
                 <Button variant="ghost" size="icon" className={`relative ${isDoctor ? "text-white hover:bg-indigo-700" : ""}`}>
                   <Bell className="w-5 h-5" />
                   <span className="absolute top-2 right-2 h-2.5 w-2.5 bg-red-500 rounded-full animate-pulse ring-2 ring-white"></span>
@@ -335,7 +336,7 @@ export default function ClinicDashboard() {
         {/* --- MOBILE VIEW (Redesigned Cards) --- */}
         <div className="md:hidden space-y-3">
           {isLoading ? (
-             <div className="text-center text-slate-400 py-10">Loading Queue...</div>
+             <ServerStatus /> // <--- FIX 1: SERVER STATUS
           ) : sortedPatients.length === 0 ? (
              <div className="text-center text-slate-400 py-10">No patients found.</div>
           ) : (
@@ -347,6 +348,7 @@ export default function ClinicDashboard() {
                 <div 
                   key={patient.id}
                   onClick={() => { setSelectedPatient(patient); setShowModal(true); }}
+                  // <--- FIX 2: IMPROVED CARD STYLE
                   className="bg-white rounded-xl shadow-sm border border-slate-200 relative overflow-hidden active:scale-[0.99] transition-all duration-200"
                 >
                   {/* Urgent Strip */}
@@ -356,25 +358,31 @@ export default function ClinicDashboard() {
                     
                     {/* Header: Name & Score */}
                     <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="text-lg font-bold text-slate-800 leading-tight">
-                          {patient.name || patient.patient_name || "Unknown"}
-                        </h3>
-                        <p className="text-xs text-slate-400 font-mono mt-0.5">
-                          ID: {patient.patient_id?.slice(0,10)}...
-                        </p>
+                      <div className="flex items-center gap-3">
+                        {/* Avatar Circle */}
+                        <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold border border-slate-200">
+                          {patient.name?.charAt(0) || patient.patient_name?.charAt(0) || "?"}
+                        </div>
+                        <div>
+                          <h3 className="text-base font-bold text-slate-800 leading-tight">
+                            {patient.name || patient.patient_name || "Unknown"}
+                          </h3>
+                          <p className="text-xs text-slate-400 font-mono mt-0.5">
+                            ID: {patient.patient_id?.slice(0,10)}...
+                          </p>
+                        </div>
                       </div>
                       <Badge variant="outline" className={`${
                         score >= 9 ? 'bg-red-50 text-red-700 border-red-200' :
                         score >= 6 ? 'bg-orange-50 text-orange-700 border-orange-200' :
                         'bg-green-50 text-green-700 border-green-200'
                       } font-bold px-2 py-0.5 text-xs`}>
-                        Score: {patient.score}
+                        {patient.score}
                       </Badge>
                     </div>
 
                     {/* Info Row */}
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between pl-13">
                       <div className="flex items-center text-xs text-slate-500 bg-slate-50 px-2 py-1.5 rounded-md border border-slate-100">
                         <Clock className="w-3.5 h-3.5 mr-1.5 text-slate-400" />
                         <span className="font-semibold text-slate-700 mr-1.5">{patient.time || "--:--"}</span>
@@ -443,16 +451,11 @@ export default function ClinicDashboard() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                Array.from({ length: 3 }).map((_, index) => (
-                  <TableRow key={index} className="animate-pulse">
-                    <TableCell><div className="h-4 w-12 bg-slate-100 rounded" /></TableCell>
-                    <TableCell><div className="h-4 w-32 bg-slate-100 rounded" /></TableCell>
-                    <TableCell><div className="h-4 w-20 bg-slate-100 rounded" /></TableCell>
-                    <TableCell><div className="h-5 w-24 bg-slate-100 rounded-full" /></TableCell>
-                    <TableCell><div className="h-4 w-16 bg-slate-100 rounded" /></TableCell>
-                    <TableCell className="text-right"><div className="h-8 w-20 bg-slate-100 rounded ml-auto" /></TableCell>
-                  </TableRow>
-                ))
+                <TableRow>
+                  <TableCell colSpan={6} className="p-4">
+                    <ServerStatus /> {/* <--- FIX 3: SERVER STATUS ON TABLE */}
+                  </TableCell>
+                </TableRow>
               ) : sortedPatients.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="h-64 text-center">

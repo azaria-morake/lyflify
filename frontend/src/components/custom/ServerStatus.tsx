@@ -39,7 +39,7 @@ export function ServerStatus() {
             {MESSAGES[step].text}
           </h3>
           <p className="text-xs text-slate-400 font-mono">
-            Connecting to Render (Free Tier)...
+            Connecting to server. Please be patient...
           </p>
         </div>
 
