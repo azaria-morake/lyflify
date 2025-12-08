@@ -27,7 +27,6 @@ export default function TriageChat() {
   const user = useAuthStore((state) => state.user);
   const navigate = useNavigate();
   
-  // 1. INITIALIZE FROM LOCAL STORAGE
   const [messages, setMessages] = useState<Message[]>(() => {
     const saved = localStorage.getItem('lyflify_chat_history');
     if (saved) {
@@ -37,7 +36,6 @@ export default function TriageChat() {
         console.error("Failed to parse chat history", e);
       }
     }
-    // Default Start Message
     return [{ 
       id: 1, 
       role: 'assistant', 
@@ -48,7 +46,6 @@ export default function TriageChat() {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // 2. SAVE TO LOCAL STORAGE ON CHANGE
   useEffect(() => {
     localStorage.setItem('lyflify_chat_history', JSON.stringify(messages));
     scrollToBottom();
@@ -66,11 +63,9 @@ export default function TriageChat() {
     localStorage.removeItem('lyflify_chat_history');
   };
 
-  // AI Chat Mutation
   const chatMutation = useMutation({
     mutationFn: async (history: Message[]) => {
       const apiHistory = history.map(m => ({ role: m.role, content: m.content }));
-      
       const res = await api.post('/triage/assess', {
         patient_id: "demo_user",
         patient_name: user?.name || "Patient",
@@ -111,30 +106,25 @@ export default function TriageChat() {
       });
     },
     onSuccess: () => {
-      // Optional: Clear chat on successful booking?
-      // clearChat(); 
       navigate('/');
     }
   });
 
   const handleSend = () => {
     if (!input.trim()) return;
-    
     const userMsg: Message = { id: Date.now(), role: 'user', content: input };
     const newHistory = [...messages, userMsg];
-    
     setMessages(newHistory);
     setInput('');
-    
     chatMutation.mutate(newHistory);
   };
 
   return (
-    // FIX: Use 100dvh to handle mobile address bars correctly
-    <div className="flex flex-col h-[100dvh] md:h-[calc(100vh-4rem)] bg-slate-50 relative">
+    // FIX: Full height Flex column. No internal scrolling on the root.
+    <div className="flex flex-col h-full bg-slate-50 relative">
       
-      {/* Header */}
-      <div className="bg-white border-b p-4 flex items-center justify-between shadow-sm sticky top-0 z-10 shrink-0">
+      {/* Header - Stays at top */}
+      <div className="bg-white border-b p-4 flex items-center justify-between shadow-sm shrink-0 z-10">
         <div className="flex items-center">
           <div className="bg-teal-100 p-2 rounded-full mr-3">
             <Bot className="w-5 h-5 text-teal-700" />
@@ -145,7 +135,6 @@ export default function TriageChat() {
           </div>
         </div>
         
-        {/* Clear Chat Button */}
         <Button 
           variant="ghost" 
           size="icon" 
@@ -157,11 +146,10 @@ export default function TriageChat() {
         </Button>
       </div>
 
-      {/* Chat Area */}
+      {/* Chat Area - THE ONLY THING THAT SCROLLS */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            
             {msg.role === 'assistant' && (
               <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center mr-2 shrink-0">
                 <Bot className="w-4 h-4 text-teal-700" />
@@ -175,7 +163,6 @@ export default function TriageChat() {
             }`}>
               <p>{msg.content}</p>
 
-              {/* BOOKING CARD */}
               {msg.triageResult && (
                 <Card className={`mt-3 border-l-4 overflow-hidden ${
                   msg.triageResult.color_code === 'red' ? 'border-l-red-500 bg-red-50' :
@@ -190,17 +177,13 @@ export default function TriageChat() {
                       {msg.triageResult.color_code === 'red' && <AlertCircle className="w-4 h-4 text-red-600" />}
                       {msg.triageResult.color_code === 'green' && <CheckCircle2 className="w-4 h-4 text-green-600" />}
                     </div>
-                    
                     <p className="text-slate-600 text-xs italic mb-3">
                       {msg.triageResult.recommended_action}
                     </p>       
-       
                     <Button 
                       size="sm" 
                       className={`w-full text-xs h-8 ${
-                        msg.triageResult.color_code === 'red' 
-                          ? 'bg-red-600 hover:bg-red-700' 
-                          : 'bg-teal-600 hover:bg-teal-700'
+                        msg.triageResult.color_code === 'red' ? 'bg-red-600 hover:bg-red-700' : 'bg-teal-600 hover:bg-teal-700'
                       }`}
                       onClick={() => bookingMutation.mutate(msg.triageResult)}
                       disabled={bookingMutation.isPending}
@@ -235,9 +218,9 @@ export default function TriageChat() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Area */}
-      <div className="p-4 bg-white border-t pb-4 md:pb-8 sticky bottom-0 z-20">
-      <div className="flex gap-2 max-w-4xl mx-auto">
+      {/* Input Area - Stagnant at bottom with padding for mobile nav */}
+      <div className="p-4 bg-white border-t shrink-0 z-20 pb-24 md:pb-4">
+        <div className="flex gap-2 max-w-4xl mx-auto">
           <Input 
             value={input}
             onChange={(e) => setInput(e.target.value)}

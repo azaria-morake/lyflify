@@ -63,6 +63,25 @@ async def update_booking_status(request: StatusUpdateRequest):
     """
     Handles Doctor Approvals, Patient Cancellations, and Deletions
     """
+    
+    # --- SAFETY CHECK: Prevent actions on Cancelled bookings ---
+    doc_ref = db.collection('queue').document(request.doc_id)
+    doc = doc_ref.get()
+    
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    current_status = doc.to_dict().get("status")
+
+    # If the booking is cancelled, we ONLY allow the 'delete' action.
+    # Any attempt to 'assign' or 'approve' will be rejected.
+    if current_status == "Cancelled" and request.action != "delete":
+        raise HTTPException(
+            status_code=400, 
+            detail="Cannot update a cancelled booking. Please delete it or create a new one."
+        )
+    # -----------------------------------------------------------
+
     if request.action == "assign":
         # New Logic: Assign to specific doctor
         success = update_booking_by_doc_id(request.doc_id, {
@@ -92,5 +111,3 @@ async def update_booking_status(request: StatusUpdateRequest):
             raise HTTPException(status_code=500, detail=str(e))
         
     return {"status": "no_action"}
-
-

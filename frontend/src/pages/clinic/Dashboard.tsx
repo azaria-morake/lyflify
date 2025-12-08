@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useMemo, useEffect } from 'react';
 import { 
   Search, Bell, MoreHorizontal, CheckCircle2, AlertCircle, Stethoscope, 
-  BrainCircuit, Clock, Trash2, UserRound, Activity, Copy
+  BrainCircuit, Clock, Trash2, UserRound, Activity, Copy, ChevronRight
 } from 'lucide-react';
 import { collection, onSnapshot, query } from "firebase/firestore";
 
@@ -156,7 +156,7 @@ export default function ClinicDashboard() {
       });
     },
     onSuccess: () => {
-      const pName = selectedPatient?.name || selectedPatient?.patient_name || "Patient"; // <--- FIX 1
+      const pName = selectedPatient?.name || selectedPatient?.patient_name || "Patient"; 
       setShowAssignModal(false);
       setShowModal(false); 
       toast.success("Doctor Assigned", {
@@ -210,11 +210,6 @@ export default function ClinicDashboard() {
     setShowModal(false);
   };
 
-  const handleReview = (patient: Patient) => {
-    setSelectedPatient(patient);
-    setShowModal(true);
-  };
-
   const addQuickScript = (med: string) => {
     setMedsInput(prev => prev ? `${prev}, ${med}` : med);
   };
@@ -236,9 +231,10 @@ export default function ClinicDashboard() {
           <div className="md:hidden">
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className={isDoctor ? "text-white hover:bg-indigo-700" : ""}>
+                {/* --- FIXED NOTIFICATION BELL --- */}
+                <Button variant="ghost" size="icon" className={`relative ${isDoctor ? "text-white hover:bg-indigo-700" : ""}`}>
                   <Bell className="w-5 h-5" />
-                  <span className="absolute top-2 right-2 h-2 w-2 bg-red-500 rounded-full animate-pulse"></span>
+                  <span className="absolute top-2 right-2 h-2.5 w-2.5 bg-red-500 rounded-full animate-pulse ring-2 ring-white"></span>
                 </Button>
               </SheetTrigger>
               <SheetContent>
@@ -304,7 +300,7 @@ export default function ClinicDashboard() {
               <SheetTrigger asChild>
                 <Button variant={isDoctor ? "secondary" : "outline"} size="icon" className="relative">
                   <Bell className={`h-4 w-4 ${isDoctor ? "text-indigo-700" : ""}`} />
-                  <span className="absolute top-2 right-2 h-2 w-2 bg-red-500 rounded-full animate-pulse"></span>
+                  <span className="absolute top-2 right-2 h-2.5 w-2.5 bg-red-500 rounded-full animate-pulse ring-2 ring-white"></span>
                 </Button>
               </SheetTrigger>
               <SheetContent>
@@ -336,8 +332,8 @@ export default function ClinicDashboard() {
       {/* CONTENT AREA */}
       <div className="p-4 md:p-6 overflow-auto flex-1">
         
-        {/* --- MOBILE VIEW (Cards) --- */}
-        <div className="md:hidden space-y-4">
+        {/* --- MOBILE VIEW (Redesigned Cards) --- */}
+        <div className="md:hidden space-y-3">
           {isLoading ? (
              <div className="text-center text-slate-400 py-10">Loading Queue...</div>
           ) : sortedPatients.length === 0 ? (
@@ -351,53 +347,80 @@ export default function ClinicDashboard() {
                 <div 
                   key={patient.id}
                   onClick={() => { setSelectedPatient(patient); setShowModal(true); }}
-                  className={`bg-white p-4 rounded-lg shadow-sm border border-slate-200 relative active:bg-slate-50 transition-colors ${
-                    isCritical ? 'border-l-4 border-l-red-500' : ''
-                  }`}
+                  className="bg-white rounded-xl shadow-sm border border-slate-200 relative overflow-hidden active:scale-[0.99] transition-all duration-200"
                 >
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h3 className="font-bold text-slate-800">{patient.name || patient.patient_name || "Unknown"}</h3>
-                      <p className="text-xs text-slate-500 font-mono">ID: {patient.patient_id}</p>
-                    </div>
-                    <Badge variant={patient.urgent ? 'destructive' : 'secondary'}>{patient.score}</Badge>
-                  </div>
+                  {/* Urgent Strip */}
+                  {isCritical && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-red-500 z-10" />}
                   
-                  <div className="flex justify-between items-center text-sm text-slate-600 mt-3">
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> {patient.time || "--:--"}
-                    </span>
-                    <span className={`px-2 py-0.5 rounded text-xs border ${getStatusColor(patient.status, patient.urgent)}`}>
-                      {patient.status}
-                    </span>
-                  </div>
+                  <div className={`p-4 flex flex-col gap-3 ${isCritical ? "pl-5" : ""}`}>
+                    
+                    {/* Header: Name & Score */}
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-800 leading-tight">
+                          {patient.name || patient.patient_name || "Unknown"}
+                        </h3>
+                        <p className="text-xs text-slate-400 font-mono mt-0.5">
+                          ID: {patient.patient_id?.slice(0,10)}...
+                        </p>
+                      </div>
+                      <Badge variant="outline" className={`${
+                        score >= 9 ? 'bg-red-50 text-red-700 border-red-200' :
+                        score >= 6 ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                        'bg-green-50 text-green-700 border-green-200'
+                      } font-bold px-2 py-0.5 text-xs`}>
+                        Score: {patient.score}
+                      </Badge>
+                    </div>
 
-                  {/* Mobile Action Button */}
-                  <div className="mt-4 pt-3 border-t flex justify-end">
-                    {isDoctor ? (
-                      <Button size="sm" className="w-full bg-indigo-600 h-8 text-xs" onClick={(e) => {
-                         e.stopPropagation(); 
-                         setConsultPatient(patient); 
-                         setMedsInput("");
-                         setShowConsultModal(true);
-                      }}>
-                        Consult Now
-                      </Button>
-                    ) : (
-                      <Button 
-                        size="sm" 
-                        variant={isAssigned ? "secondary" : "outline"}
-                        disabled={isAssigned}
-                        className="w-full h-8 text-xs" 
-                        onClick={(e) => {
-                           e.stopPropagation();
-                           setSelectedPatient(patient);
-                           setShowAssignModal(true);
-                        }}
-                      >
-                        {isAssigned ? "Assigned" : "Assign"}
-                      </Button>
-                    )}
+                    {/* Info Row */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center text-xs text-slate-500 bg-slate-50 px-2 py-1.5 rounded-md border border-slate-100">
+                        <Clock className="w-3.5 h-3.5 mr-1.5 text-slate-400" />
+                        <span className="font-semibold text-slate-700 mr-1.5">{patient.time || "--:--"}</span>
+                        <span className="text-slate-300 border-l pl-1.5 border-slate-200">
+                          {getWaitTime(patient.created_at)}
+                        </span>
+                      </div>
+                      
+                      <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-full border ${getStatusColor(patient.status, patient.urgent)}`}>
+                        {patient.status}
+                      </span>
+                    </div>
+
+                    {/* Action Area */}
+                    <div className="pt-2">
+                        {isDoctor ? (
+                          <Button 
+                            size="sm" 
+                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-100 shadow-lg h-10 font-medium" 
+                            disabled={patient.status === 'Cancelled'}
+                            onClick={(e) => {
+                              e.stopPropagation(); 
+                              setConsultPatient(patient); 
+                              setMedsInput("");
+                              setShowConsultModal(true);
+                            }}
+                          >
+                            <Stethoscope className="w-4 h-4 mr-2" /> Consult Patient
+                          </Button>
+                        ) : (
+                          <Button 
+                            size="sm" 
+                            variant={isAssigned ? "secondary" : "outline"}
+                            disabled={isAssigned || patient.status === 'Cancelled'}
+                            className={`w-full h-10 font-medium ${isAssigned ? 'bg-slate-100 text-slate-500' : 'border-teal-200 text-teal-700 bg-teal-50/50'}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedPatient(patient);
+                              setShowAssignModal(true);
+                            }}
+                          >
+                            {isAssigned ? "Assigned to Dr." : patient.status === 'Cancelled' ? "Booking Cancelled" : "Assign Doctor"}
+                            {!isAssigned && patient.status !== 'Cancelled' && <ChevronRight className="w-4 h-4 ml-2 opacity-50" />}
+                          </Button>
+                        )}
+                    </div>
                   </div>
                 </div>
               );
@@ -431,30 +454,30 @@ export default function ClinicDashboard() {
                   </TableRow>
                 ))
               ) : sortedPatients.length === 0 ? (
-  <TableRow>
-    <TableCell colSpan={6} className="h-64 text-center">
-      <div className="flex flex-col items-center justify-center opacity-50">
-        {isDoctor ? (
-          <>
-            <div className="bg-indigo-50 p-6 rounded-full mb-4">
-              <CheckCircle2 className="h-12 w-12 text-indigo-400" />
-            </div>
-            <h3 className="text-lg font-medium text-slate-700">All Caught Up!</h3>
-            <p className="text-sm text-slate-500">You have no active consultations.</p>
-          </>
-        ) : (
-          <>
-            <div className="bg-slate-100 p-6 rounded-full mb-4">
-              <UserRound className="h-12 w-12 text-slate-400" />
-            </div>
-            <h3 className="text-lg font-medium text-slate-700">Waiting Room Empty</h3>
-            <p className="text-sm text-slate-500">Waiting for new check-ins...</p>
-          </>
-        )}
-      </div>
-    </TableCell>
-  </TableRow>
-) : (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-64 text-center">
+                    <div className="flex flex-col items-center justify-center opacity-50">
+                      {isDoctor ? (
+                        <>
+                          <div className="bg-indigo-50 p-6 rounded-full mb-4">
+                            <CheckCircle2 className="h-12 w-12 text-indigo-400" />
+                          </div>
+                          <h3 className="text-lg font-medium text-slate-700">All Caught Up!</h3>
+                          <p className="text-sm text-slate-500">You have no active consultations.</p>
+                        </>
+                      ) : (
+                        <>
+                          <div className="bg-slate-100 p-6 rounded-full mb-4">
+                            <UserRound className="h-12 w-12 text-slate-400" />
+                          </div>
+                          <h3 className="text-lg font-medium text-slate-700">Waiting Room Empty</h3>
+                          <p className="text-sm text-slate-500">Waiting for new check-ins...</p>
+                        </>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
                 sortedPatients.map((patient, i) => {
                   const score = getScore(patient);
                   const isCritical = score >= 9;
@@ -508,6 +531,7 @@ export default function ClinicDashboard() {
                              <Button 
                                size="sm"
                                className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm h-8"
+                               disabled={patient.status === 'Cancelled'}
                                onClick={(e) => {
                                  e.stopPropagation();
                                  setConsultPatient(patient);
@@ -522,13 +546,14 @@ export default function ClinicDashboard() {
                                size="sm"
                                variant="outline"
                                className="border-teal-200 text-teal-700 hover:bg-teal-50 h-8"
+                               disabled={patient.status === 'Waiting for Doctor' || patient.status === 'Cancelled'}
                                onClick={(e) => {
                                  e.stopPropagation();
                                  setSelectedPatient(patient);
                                  setShowAssignModal(true);
                                }}
                              >
-                               Assign
+                               {patient.status === 'Waiting for Doctor' ? "Assigned" : patient.status === 'Cancelled' ? "Cancelled" : "Assign"}
                              </Button>
                           )}
                           <Button 
@@ -839,6 +864,7 @@ export default function ClinicDashboard() {
                {!isDoctor && selectedPatient?.status !== 'Completed' && (
                  <Button 
                    className="bg-teal-600 hover:bg-teal-700 flex-1 sm:flex-none" 
+                   disabled={selectedPatient?.status === 'Cancelled' || selectedPatient?.status === 'Waiting for Doctor'}
                    onClick={() => { setShowModal(false); setShowAssignModal(true); }}
                  >
                    Assign Doctor
@@ -849,6 +875,7 @@ export default function ClinicDashboard() {
                {isDoctor && (
                  <Button 
                    className="bg-indigo-600 hover:bg-indigo-700 text-white flex-1 sm:flex-none" 
+                   disabled={selectedPatient?.status === 'Cancelled'}
                    onClick={() => { setShowModal(false); setConsultPatient(selectedPatient); setShowConsultModal(true); }}
                  >
                    Start Consultation

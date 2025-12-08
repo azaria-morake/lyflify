@@ -10,7 +10,9 @@ import api from '../../lib/api';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
+import { ServerStatus } from '@/components/custom/ServerStatus';
 
+// ... (Keep existing MetaLogo and fetchers) ...
 // --- CUSTOM META ICON COMPONENT ---
 const MetaLogo = ({ className }: { className?: string }) => (
   <svg 
@@ -23,7 +25,6 @@ const MetaLogo = ({ className }: { className?: string }) => (
   </svg>
 );
 
-// --- FETCHERS ---
 const fetchCarePath = async () => {
   const response = await api.get('/navigator/status/demo_user');
   return response.data;
@@ -34,7 +35,6 @@ const fetchRecentRecord = async () => {
   return response.data && response.data.length > 0 ? response.data[0] : null;
 };
 
-// NEW: Fetch AI Pulse
 const fetchHealthPulse = async () => {
   const response = await api.get('/records/ai-summary/demo_user');
   return response.data;
@@ -63,7 +63,6 @@ export default function PatientHome() {
     refetchInterval: 5000,
   });
 
-  // NEW: AI Query
   const { data: aiPulse, isLoading: loadingAi } = useQuery({
     queryKey: ['aiPulse'],
     queryFn: fetchHealthPulse,
@@ -111,8 +110,6 @@ export default function PatientHome() {
         </div>
       </header>
 
-      
-
       <div className="space-y-2">
         <div className="flex justify-between items-center px-1">
           <h3 className="font-semibold text-slate-700">My Appointments</h3>
@@ -127,9 +124,9 @@ export default function PatientHome() {
         <div ref={scrollRef} className="flex overflow-x-auto gap-4 pb-4 snap-x snap-mandatory -mx-4 px-4 scrollbar-hide md:grid md:grid-cols-2 lg:grid-cols-3 md:overflow-visible md:mx-0 md:px-0">
           
           {isLoading && (
-             <Card className="min-w-[90%] md:w-full snap-center shadow-sm border-teal-100/50 bg-white h-[280px] animate-pulse">
-                <CardContent className="p-6"><div className="h-6 w-32 bg-slate-100 rounded" /></CardContent>
-             </Card>
+             <div className="min-w-[90%] md:w-full snap-center">
+                <ServerStatus />
+             </div>
           )}
 
           {(!hasAppointments && !isLoading) && (
@@ -255,10 +252,9 @@ export default function PatientHome() {
         </Link>
       </div>
 
-      {/* --- AI HEALTH PULSE CARD (UPDATED HEADER) --- */}
+      {/* --- AI HEALTH PULSE CARD --- */}
       <div className="space-y-2">
         <h3 className="font-semibold text-slate-700 px-1 flex items-center gap-3">
-          {/* Dual Logo Badge */}
           <div className="flex items-center">
             <div className="bg-teal-600 p-1.5 rounded-full z-10 ring-2 ring-white shadow-sm">
               <Activity className="w-3 h-3 text-white" />
@@ -303,7 +299,7 @@ export default function PatientHome() {
         )}
       </div>
 
-      {/* Recent Updates (Live Data) */}
+      {/* Recent Updates */}
       <div className="space-y-3 pb-4">
         <h3 className="font-semibold text-slate-700 px-1">Recent Updates</h3>
         {latestRecord ? (
