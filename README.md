@@ -1,268 +1,177 @@
+# LyfLify [Powered by Llama 3]
 
-# LyfLify (Impilo Flow) 🏥💙
+![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Hackathon](https://img.shields.io/badge/Hackathon-Custom%20Problem%20Statement-orange)
+![Frontend](https://img.shields.io/badge/Frontend-React%20%7C%20TypeScript-lightblue)
+![Backend](https://img.shields.io/badge/Backend-FastAPI%20%7C%20Python-yellow)
+![AI](https://img.shields.io/badge/AI-Llama%203.1-ff69b4)
+![Database](https://img.shields.io/badge/Database-Firebase%20Firestore-blueviolet)
 
-**A Unified, AI-Driven Patient Journey Ecosystem.**
+**A Unified, AI-Driven Patient Journey Ecosystem**
 
-> **Hackathon Track:** Custom Problem Statement — "Unifying the Care Continuum"  
-> **Live Demo:** [Insert Vercel Link Here]
-
----
-
-## 📖 Overview
-
-LyfLify acts as the "Operating System" for community healthcare. It bridges the gap between chaotic physical queues and actual consultation.
-
-- **For Patients (Mobile):** A "Gogo-friendly" app to check triage status, book slots, and access medical records.
-- **For Clinics (Desktop):** A dashboard to manage live queues and verify AI-generated summaries.
+> **Hackathon Track:** Custom Problem Statement: "Unifying the Care Continuum"  
+> **Live Demo:** https://lyflify.vercel.app/
 
 ---
 
-## 🛠️ Tech Stack
+## Overview
 
-We are using a **Monorepo** structure (Frontend + Backend in one folder).
+LyfLify acts as the **“Operating System” for community healthcare**, bridging the gap between chaotic physical queues and quality consultation.  
 
-- **Frontend:** React (Vite) + TypeScript + Tailwind CSS + Shadcn UI  
-- **Backend:** Python (FastAPI)  
-- **Database:** Firebase (Firestore)  
-- **AI:** Meta Llama 3 (via Groq/LangChain)
+It features a **dual-interface system**:
 
-![LyfLify Architecture](attachment)
+<details>
+<summary> Patient Interface (Mobile)</summary>
 
----
+- **“Nurse Nandiphiwe”**, a **Gogo-friendly empathetic AI persona**, assists patients in triage, explains medical jargon in plain language, and provides **live queue updates**.  
+- **Health Pulse**: AI-generated personalized summary of the patient’s health status with actionable tips.  
+- **Live Journey Tracker**: Keeps patients updated on appointment status (Pending, Confirmed, Delayed) with estimated wait times.  
+- **Jargon Buster**: Button that translates complex diagnoses and prescriptions into simple, easy-to-understand English.
 
-## 🚀 Setup Instructions
+</details>
 
-### Prerequisites
+<details>
+<summary> Clinic Interface (Desktop)</summary>
 
-1. **Node.js:** v20 LTS recommended (Avoid Node v23).  
-2. **Python:** v3.10+.  
-3. **Git**
+- **Live Queue Dashboard**: Staff can see incoming patients, their AI-assigned urgency scores, and estimated wait times.  
+- **Operational Analytics**: Powered by **Llama 3**, providing actionable insights to prevent bottlenecks before they happen.  
+- **Digital Consultation**: Doctors can view AI triage notes, record vitals, and issue digital prescriptions efficiently.  
+- **Simulation Tools**: Instantly test how the system handles crisis scenarios and see real-time updates for patients.
 
----
-
-### Step 1: Clone the Repository
-
-```bash
-git clone https://github.com/YOUR_USERNAME/lyflify.git
-cd lyflify
-```
+</details>
 
 ---
 
-### Step 2: Frontend Setup (Patient App & Doctor Dashboard)
+##  Core Features
+
+### For Patients
+![AI Triage](https://img.shields.io/badge/AI%20Triage-✅-pink)
+![Health Pulse](https://img.shields.io/badge/Health%20Pulse-✅-green)
+![Live Journey Tracker](https://img.shields.io/badge/Live%20Journey%20Tracker-✅-blue)
+![Jargon Buster](https://img.shields.io/badge/Jargon%20Buster-✅-orange)
+
+- **AI Triage Chat (Nurse Nandiphiwe)**: Uses Llama 3 to assess symptoms, assign color-coded urgency (Red/Orange/Green), and book appointments automatically.  
+- **Health Pulse**: Personalized health insights immediately on login.  
+- **Live Journey Tracker**: Real-time appointment status and wait times.  
+- **Jargon Buster**: Makes complex medical terms easy to understand.
+
+### For Clinics
+![Live Queue](https://img.shields.io/badge/Live%20Queue-✅-purple)
+![Operational Analytics](https://img.shields.io/badge/Operational%20Analytics-✅-yellow)
+![Digital Consultation](https://img.shields.io/badge/Digital%20Consultation-✅-lightblue)
+![Simulation Tools](https://img.shields.io/badge/Simulation%20Tools-✅-red)
+
+- **Live Queue Dashboard**: See all incoming patients and AI urgency scores.  
+- **Operational Analytics**: AI-driven insights to optimize staff allocation and prevent bottlenecks.  
+- **Digital Consultation**: Doctors can access AI triage notes, record vitals, and issue prescriptions.  
+- **Simulation Tools**: Test system performance in simulated crises.
+
+---
+
+## Tech Stack
+
+![React](https://img.shields.io/badge/Frontend-React%20%7C%20TypeScript-lightblue)
+![Tailwind](https://img.shields.io/badge/Styling-TailwindCSS-green)
+![FastAPI](https://img.shields.io/badge/Backend-FastAPI%20%7C%20Python-yellow)
+![Firebase](https://img.shields.io/badge/Database-Firebase%20Firestore-blueviolet)
+![Zustand](https://img.shields.io/badge/State%20Mgmt-Zustand%20%7C%20ReactQuery-purple)
+![Llama3](https://img.shields.io/badge/AI-Llama%203.1-pink)
+
+---
+
+## Setup Instructions
+
+<details>
+<summary>Prerequisites</summary>
+
+- Node.js v20 LTS  
+- Python 3.10+  
+- Firebase & Groq Keys (`serviceAccountKey.json` + Groq API Key)  
+
+</details>
+
+<details>
+<summary>Frontend Setup</summary>
 
 ```bash
 cd frontend
 npm install
 ```
 
-**Environment Configuration:**
-
-Create `.env.development` in `frontend/`:
-
+Create `.env.development`:
 ```env
 VITE_API_URL=http://localhost:8000
 ```
 
-**Start Frontend:**
-
+Start frontend:
 ```bash
 npm run dev
+# Runs on http://localhost:5173
 ```
 
-> Local URL: http://localhost:5173/
+</details>
 
----
-
-### Step 3: Backend Setup (Logic, Database, AI)
+<details>
+<summary>Backend Setup</summary>
 
 ```bash
 cd backend
-```
-
-**Create Virtual Environment:**
-
-- **Windows:**
-```bash
 python -m venv venv
-venv\Scripts\activate
-```
-
-- **Mac/Linux:**
-```bash
-python3 -m venv venv
-source venv/bin/activate
-```
-
-**Install Dependencies:**
-
-```bash
+# Activate venv:
+# Windows: venv\Scripts\activate
+# Mac/Linux: source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-**Database Key:**
+Configuration:
+- Place `serviceAccountKey.json` in `backend/` root
+- Create `.env.groq`:
+```env
+GROQ_API_KEY=gsk_...
+```
 
-- Obtain `serviceAccountKey.json` from Azaria. This is because the file is sensitive.
-- Place it inside `backend/`.  
-- ⚠️ Do NOT push this file to GitHub.
-
-**Start Backend:**
-
+Start server:
 ```bash
 uvicorn app.main:app --reload
+# Runs on http://127.0.0.1:8000
 ```
 
-> Local URL: http://127.0.0.1:8000
+</details>
 
 ---
 
-## 🐛 Troubleshooting
+## Demo Accounts
 
-1. **"require is not defined" or Tailwind errors**  
-   - Delete `node_modules` and run `npm install` again.
-
-2. **"Network Error" on Frontend**  
-   - Ensure backend is running and `.env.development` points to `http://localhost:8000`.
-
-3. **"Missing firestore module" in Backend**  
-   - Make sure virtual environment is activated. Look for `(venv)` in your terminal prompt.
+| Role     | Email           | Password | Features |
+|---------|-----------------|---------|---------|
+| Patient | user@demo.com   | 123456  | AI Triage, Health Pulse, My Records |
+| Doctor  | dr@demo.com     | 123456  | Consultation Modal, Vitals, Discharge |
+| Admin   | clinic@demo.com | 123456  | Live Queue, Assign Doctors, Analytics |
 
 ---
 
-## 👩‍💻 Developer Workflow
+## Future Roadmap
 
-**Frontend (UI):**
+![Dependent Profiles](https://img.shields.io/badge/Dependent%20Profiles-📌-blue)
+![Granular Staff Access](https://img.shields.io/badge/Granular%20Staff%20Access-📌-purple)
+![Voice Integration](https://img.shields.io/badge/Voice%20Integration-📌-green)
+![SMS Notifications](https://img.shields.io/badge/SMS%20%26%20WhatsApp-📌-yellow)
+![EHR Interoperability](https://img.shields.io/badge/EHR%20Integration-📌-red)
+![Offline Mode](https://img.shields.io/badge/Offline%20Mode-📌-lightblue)
 
-- Edit `frontend/src/pages`
-- Add components: `npx shadcn@latest add [component]`
-
-**Backend (Logic):**
-
-- Edit `backend/app/routers`
-- API auto-reloads on save
-
-**Push Changes & Deploy:**
-
-```bash
-git add .
-git commit -m "Describe your changes"
-git push
-```
-
-> This will automatically deploy the project to Vercel.
+- Dependent Profiles: Allow parents/guardians to manage child & elderly health profiles.  
+- Granular Staff Access: RBAC for receptionists, nurses, and specialists.  
+- mjolnir Voice Integration: Voice-to-text triage for elderly or illiterate patients.  
+- SMS & WhatsApp Notifications: Appointment reminders, queue updates, and prescription summaries.  
+- EHR Interoperability: HL7/FHIR integration with national health databases.  
+- Offline Mode: PWA access to last-loaded records.
 
 ---
 
-## 🏆 Features
+## Contact & Contributions
 
-- AI-driven triage and summarization
-- Real-time queue management
-- Patient-friendly mobile experience
-- Clinic dashboard with AI verification
-- Fully integrated backend with Firebase
+  
+**Lead Dev:** Azaria Morake  
 
----
-
-## 📬 Contact
-
-For questions or to get `serviceAccountKey.json`, reach out to **Azaria**.
-
-
-
-# 🛡️ The "Don't Break Prod" Protocol
-
-## The Golden Rule
-NEVER push directly to the main branch.  
-The main branch is our Live Production site. If you break main, you break the demo for the judges.  
-Instead, we use Feature Branches and Pull Requests.
-
----
-
-## Step 1: Create your "Safe Space" (The Branch)
-
-Before you start coding a new feature (e.g., the Chat UI), create a separate copy of the code.
-
-1. Make sure you have the latest code:
-
-```bash
-git checkout main
-git pull origin main
-```
-
-2. Create your branch:
-
-**Naming convention:** `name/feature-description`  
-Example:
-
-```bash
-git checkout -b thabo/triage-chat-ui
-# or your own:
-git checkout -b yourname/feature-name
-```
-
-You are now in a safe sandbox. You can break everything here, and the live site remains safe.
-
----
-
-## Step 2: Work & Save
-
-Write your code. Break things. Fix things.  
-
-When you are ready to save:
-
-```bash
-git add .
-git commit -m "Added the chat bubbles and send button"
-```
-
----
-
-## Step 3: Push to GitHub (Not Main!)
-
-When you are done, push your specific branch up to the cloud.
-
-```bash
-git push origin yourname/feature-name
-```
-
-> ⚠️ Don't push `main`. Push **YOUR branch name**.
-
----
-
-## Step 4: Open a Pull Request (The Magic Moment)
-
-1. Go to our GitHub Repository in your browser.  
-2. You will see a yellow banner saying "`yourname/feature-name` had recent pushes".  
-3. Click the green button "Compare & pull request".  
-4. Write a quick title (e.g., "Added Triage Chat UI") and click **Create Pull Request**.
-
-### 🌟 Why this is amazing for us: Vercel Preview Deployments
-
-As soon as you open that Pull Request, Vercel will automatically build a "Preview Site" just for your code.
-
-- You will see a bot comment with a link (e.g., `lyflify-git-thabo-chat.vercel.app`).  
-- You can click that link to see your changes live on a real server, without touching the main `lyflify.vercel.app`.
-
----
-
-## Step 5: The Merge (My Job)
-
-Do **not** merge your own code. Assign the Pull Request to **Azaria**.
-
-- I will look at the code.  
-- I will click the Vercel Preview link to make sure it works.  
-- If it's good, I will click the **Merge** button.  
-
-Only when I click Merge does the code go to the Main Live Site.
-
----
-
-## Summary for the Team
-
-```bash
-git checkout -b my-new-feature
-# Code code code...
-git push origin my-new-feature
-# Go to GitHub -> Create Pull Request.
-# Wait for review.
-```
+💡 Reset demo database: send POST request to `/reset-demo` or use `backend/scripts/reset_demo.py`
