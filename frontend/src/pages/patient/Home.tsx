@@ -12,19 +12,24 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ca
 import { Badge } from '../../components/ui/badge';
 import { ServerStatus } from '@/components/custom/ServerStatus';
 
-// ... (Keep existing MetaLogo and fetchers) ...
 // --- CUSTOM META ICON COMPONENT ---
-const MetaLogo = ({ className }: { className?: string }) => (
-  <svg 
-    viewBox="0 0 24 24" 
-    fill="currentColor" 
-    className={className} 
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <path d="M12 5.16514C9.65665 5.16514 8.2128 6.69714 7.22813 8.35824L6.99343 8.75166C6.56477 9.47566 6.13611 10.1979 5.62939 10.7937C4.95357 11.5833 4.2096 11.9566 3.4259 11.9566C2.19329 11.9566 1.34119 10.9577 1.34119 9.38799C1.34119 7.8596 2.15243 6.87714 3.32711 6.87714C3.89669 6.87714 4.39893 7.14798 4.7176 7.61914L4.99127 8.02514C5.16662 8.28564 5.51206 8.35224 5.77256 8.17688C6.03306 8.00153 6.09966 7.65609 5.9243 7.39559L5.65063 6.98959C5.1378 6.22839 4.32074 5.76024 3.32711 5.76024C1.5037 5.76024 0.224121 7.33714 0.224121 9.38799C0.224121 11.5851 1.62319 13.0737 3.4259 13.0737C4.69733 13.0737 5.63206 12.4283 6.47539 11.4397C6.9188 10.9202 7.30937 10.2611 7.69733 9.60539C7.75893 9.50139 7.82053 9.39739 7.88106 9.29453L7.96263 9.15739C8.75223 7.82399 9.77133 6.84139 11.3789 6.84139C13.2373 6.84139 14.2872 8.13999 14.8965 9.77339L15.3365 10.9502C15.8645 12.3662 16.7925 13.0737 18.2565 13.0737C20.4072 13.0737 21.7325 11.3265 21.7325 9.38799C21.7325 7.42624 20.3725 5.76024 18.2565 5.76024C16.6365 5.76024 15.5125 6.55024 14.5379 8.23024L14.4725 8.34359L14.3992 8.53959C14.2565 8.92224 13.7312 10.3277 12.556 10.3277C11.3411 10.3277 10.5181 9.27339 10.0248 8.04399L9.58479 6.94539C8.83413 5.07478 10.2741 5.16514 12 5.16514ZM18.2565 6.87714C19.6739 6.87714 20.6155 8.04139 20.6155 9.38799C20.6155 10.712 19.6979 11.9566 18.2565 11.9566C17.3712 11.9566 16.7645 11.5311 16.3805 10.5594L16.2739 10.2728C17.0605 8.20453 17.1592 8.06999 17.2912 7.84339C17.6325 7.25624 17.8845 6.87714 18.2565 6.87714Z" />
-  </svg>
-);
+export function MetaIcon({ size = 20, className = "" }) {
+  return (
+    <svg
+      viewBox="0 0 512 512"
+      width={size}
+      height={size}
+      fill="currentColor"
+      aria-label="Meta"
+      role="img"
+      className={className}
+    >
+      <path d="M384.6 96c-47.9 0-82.9 36.2-122.6 100.7C222.5 135.4 184.7 96 137.4 96 62.6 96 0 191.2 0 274.3 0 323.6 25.4 352 64.1 352c26.4 0 46.3-12.5 79.8-71.7l69.6-122.6c13.2 21.6 28 47.6 40.5 69.6l41.3 73.6c33.4 59.1 53.4 71.1 80.7 71.1 42.5 0 68.6-34.1 68.6-97.8 0-94.9-63.5-178.2-139-178.2ZM145.7 248.7c-39.9 69.6-55.2 88.7-76.8 88.7-23.3 0-36.2-19.6-36.2-61.5 0-83.6 41.7-151.4 94.9-151.4 28.8 0 53.4 20.2 85.8 69.2-23.8 43.4-40 75-67.7 124.9Zm204.4-7.4-46.7-78.1c-11.5-19.5-22.6-36.7-33.8-52.6 25.8-38.7 52.2-60.3 83.9-60.3 55.8 0 100.5 71.7 100.5 161.7 0 42.1-14 65.6-39.4 65.6-22.7 0-37.4-14.5-64.5-36.3Z" />
+    </svg>
+  );
+}
 
+// --- FETCHERS ---
 const fetchCarePath = async () => {
   const response = await api.get('/navigator/status/demo_user');
   return response.data;
@@ -252,16 +257,15 @@ export default function PatientHome() {
         </Link>
       </div>
 
-      {/* --- AI HEALTH PULSE CARD --- */}
+      {/* --- AI HEALTH PULSE CARD (UPDATED: Clean Pill Icon) --- */}
       <div className="space-y-2">
         <h3 className="font-semibold text-slate-700 px-1 flex items-center gap-3">
-          <div className="flex items-center">
-            <div className="bg-teal-600 p-1.5 rounded-full z-10 ring-2 ring-white shadow-sm">
-              <Activity className="w-3 h-3 text-white" />
-            </div>
-            <div className="bg-blue-600 p-1.5 rounded-full -ml-2 ring-2 ring-white shadow-sm">
-              <BrainCircuit className="w-3 h-3 text-white" />
-            </div>
+          
+          {/* THE NEW CLEAN BADGE - MATCHES SCREENSHOT */}
+          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-full px-3 py-1.5 shadow-sm">
+             <Activity className="w-5 h-5 text-teal-600" />
+             <div className="w-px h-4 bg-slate-200" />
+             <MetaIcon className="w-5 h-5 text-[#0081FB]" /> {/* Official Meta Blue */}
           </div>
           
           <span className="font-bold text-sm md:text-base bg-clip-text text-transparent bg-gradient-to-r from-teal-700 to-blue-700">
@@ -270,7 +274,7 @@ export default function PatientHome() {
         </h3>
 
         {loadingAi ? (
-          <div className="bg-indigo-50/50 p-6 rounded-xl border border-indigo-100 animate-pulse h-32" />
+          <ServerStatus />
         ) : (
           <div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-5 rounded-xl shadow-lg text-white relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10" />
@@ -299,7 +303,7 @@ export default function PatientHome() {
         )}
       </div>
 
-      {/* Recent Updates */}
+      {/* Recent Updates (Live Data) */}
       <div className="space-y-3 pb-4">
         <h3 className="font-semibold text-slate-700 px-1">Recent Updates</h3>
         {latestRecord ? (

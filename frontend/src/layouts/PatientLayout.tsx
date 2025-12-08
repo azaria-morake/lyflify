@@ -9,11 +9,9 @@ export default function PatientLayout() {
   const isActive = (path: string) => location.pathname === path;
   const logout = useAuthStore((state) => state.logout);
 
-  // DETECT CHAT PAGE
   const isChatPage = location.pathname === '/triage';
 
   return (
-    // ROOT: Lock viewport height (h-screen) and hide overflow to prevent body scroll
     <div className="h-screen bg-slate-50 flex flex-col overflow-hidden">
       
       {/* --- DESKTOP HEADER --- */}
@@ -40,12 +38,11 @@ export default function PatientLayout() {
 
       {/* --- MAIN CONTENT --- */}
       <main className="flex-1 w-full md:max-w-5xl md:mx-auto md:p-6 relative overflow-hidden">
-        {/* WRAPPER LOGIC:
-           - Normal Pages: Scrollable (overflow-y-auto) with bottom padding (pb-24) for the nav.
-           - Chat Page: Non-scrollable (overflow-hidden) with NO padding. The Chat component handles its own layout.
+        {/* 1. Reverted to max-w-md mx-auto (Centered layout)
+           2. Added scrollbar hiding classes: [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]
         */}
         <div className={cn(
-          "h-full w-full max-w-md mx-auto md:max-w-none bg-slate-50 md:bg-transparent",
+          "h-full w-full max-w-md mx-auto md:max-w-none bg-slate-50 md:bg-transparent [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]",
           isChatPage ? "overflow-hidden pb-0" : "overflow-y-auto pb-24 md:pb-0"
         )}>
            <Outlet />

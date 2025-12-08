@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Search, User, Calendar, FileText, ChevronRight, History } from 'lucide-react'; // Added icons
+import { Search, User, Calendar, FileText, ChevronRight, History } from 'lucide-react'; 
 import api from '../../lib/api';
 import { Input } from '../../components/ui/input';
 import { Button } from '../../components/ui/button';
@@ -14,8 +14,8 @@ import {
 } from "@/components/ui/sheet";
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { ServerStatus } from '@/components/custom/ServerStatus'; // <--- IMPORT
 
-// ... (Keep existing fetchers: fetchPatients, fetchPatientHistory) ...
 const fetchPatients = async () => {
   const response = await api.get('/records/all-patients');
   return response.data;
@@ -71,7 +71,7 @@ export default function ClinicPatients() {
         {/* --- MOBILE VIEW: CARDS (Visible md:hidden) --- */}
         <div className="md:hidden space-y-3">
           {isLoading ? (
-             <div className="text-center text-slate-400 py-10">Loading Registry...</div>
+             <ServerStatus /> // <--- REPLACED TEXT LOADER
           ) : filteredPatients?.length === 0 ? (
              <div className="text-center text-slate-400 py-10">No records found.</div>
           ) : (
@@ -122,7 +122,9 @@ export default function ClinicPatients() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center text-slate-500">Loading Registry...</TableCell>
+                  <TableCell colSpan={6} className="p-4">
+                    <ServerStatus /> {/* <--- REPLACED TEXT LOADER */}
+                  </TableCell>
                 </TableRow>
               ) : filteredPatients?.length === 0 ? (
                 <TableRow>
@@ -157,7 +159,7 @@ export default function ClinicPatients() {
 
       {/* History Sheet (Responsive Width) */}
       <Sheet open={!!selectedPatientId} onOpenChange={() => setSelectedPatientId(null)}>
-        <SheetContent className="w-[90%] sm:max-w-md overflow-y-auto"> {/* Changed width for mobile */}
+        <SheetContent className="w-[90%] sm:max-w-md overflow-y-auto">
           <SheetHeader className="mb-6">
             <SheetTitle>Medical History</SheetTitle>
             <SheetDescription>
@@ -166,7 +168,9 @@ export default function ClinicPatients() {
           </SheetHeader>
 
           {loadingHistory ? (
-            <div className="text-center py-10 text-slate-400">Loading history...</div>
+            <div className="p-4">
+                <ServerStatus /> {/* Re-using it here too for consistency if desired */}
+            </div>
           ) : (
             <div className="space-y-6">
               {history?.map((record: any, idx: number) => (

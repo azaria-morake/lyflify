@@ -120,10 +120,9 @@ export default function TriageChat() {
   };
 
   return (
-    // FIX: Full height Flex column. No internal scrolling on the root.
     <div className="flex flex-col h-full bg-slate-50 relative">
       
-      {/* Header - Stays at top */}
+      {/* Header */}
       <div className="bg-white border-b p-4 flex items-center justify-between shadow-sm shrink-0 z-10">
         <div className="flex items-center">
           <div className="bg-teal-100 p-2 rounded-full mr-3">
@@ -146,10 +145,11 @@ export default function TriageChat() {
         </Button>
       </div>
 
-      {/* Chat Area - THE ONLY THING THAT SCROLLS */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      {/* Chat Area - Added Scrollbar Hiding */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            
             {msg.role === 'assistant' && (
               <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center mr-2 shrink-0">
                 <Bot className="w-4 h-4 text-teal-700" />
@@ -177,13 +177,17 @@ export default function TriageChat() {
                       {msg.triageResult.color_code === 'red' && <AlertCircle className="w-4 h-4 text-red-600" />}
                       {msg.triageResult.color_code === 'green' && <CheckCircle2 className="w-4 h-4 text-green-600" />}
                     </div>
+                    
                     <p className="text-slate-600 text-xs italic mb-3">
                       {msg.triageResult.recommended_action}
                     </p>       
+       
                     <Button 
                       size="sm" 
                       className={`w-full text-xs h-8 ${
-                        msg.triageResult.color_code === 'red' ? 'bg-red-600 hover:bg-red-700' : 'bg-teal-600 hover:bg-teal-700'
+                        msg.triageResult.color_code === 'red' 
+                          ? 'bg-red-600 hover:bg-red-700' 
+                          : 'bg-teal-600 hover:bg-teal-700'
                       }`}
                       onClick={() => bookingMutation.mutate(msg.triageResult)}
                       disabled={bookingMutation.isPending}
@@ -218,7 +222,7 @@ export default function TriageChat() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Area - Stagnant at bottom with padding for mobile nav */}
+      {/* Input Area */}
       <div className="p-4 bg-white border-t shrink-0 z-20 pb-24 md:pb-4">
         <div className="flex gap-2 max-w-4xl mx-auto">
           <Input 
