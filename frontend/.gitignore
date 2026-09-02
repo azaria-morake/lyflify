@@ -27,3 +27,6 @@ dist-ssr
 #Env
 .env
 .env.local
+.env.groq
+serviceAccountKey.json
+venv

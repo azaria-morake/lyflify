@@ -1,0 +1,1 @@
+MOLO Flat V4 incredibly fun bubbly almost-animate like Molo Wave waving hand, exaggerated rounded bouncy proportions alive, solid flat fill no stroke no gradient, Teal #0A7D6F Clay #E04030 Sand #FDE8D0 off-white #FFFBF5, 1:1 square, 

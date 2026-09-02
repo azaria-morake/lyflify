@@ -1,0 +1,22 @@
+# Environment & Secrets
+.env*
+*.env*
+serviceAccountKey.json
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.venv
+venv/
+
+# Node / Frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Vercel
+.vercel

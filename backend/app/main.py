@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import triage, navigator, booking, records
-from app.services.firebase import get_queue, seed_queue
+from app.services.firebase import get_queue, seed_queue, db
 # Import the gatekeeper
 from app.dependencies import verify_firebase_token
 
@@ -79,15 +79,16 @@ def reset_demo_state():
     EMERGENCY BUTTON: Deletes all 'records' and 'queue' data 
     and reseeds the initial demo patients.
     """
-    # 1. Delete Queue
-    queue_ref = db.collection('queue')
-    for doc in queue_ref.stream():
-        doc.reference.delete()
+    if db:
+        # 1. Delete Queue
+        queue_ref = db.collection('queue')
+        for doc in queue_ref.stream():
+            doc.reference.delete()
 
-    # 2. Delete Records
-    records_ref = db.collection('records')
-    for doc in records_ref.stream():
-        doc.reference.delete()
+        # 2. Delete Records
+        records_ref = db.collection('records')
+        for doc in records_ref.stream():
+            doc.reference.delete()
 
     # 3. Seed Fresh Data
     seed_database() # Call your existing seed function

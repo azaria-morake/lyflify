@@ -53,6 +53,15 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        sindi: {
+          teal: "#0A7D6F",
+          darkteal: "#053B36",
+          red: "#E04030",
+          sand: "#FDE8D0",
+          cream: "#FAF7F2",
+          offwhite: "#FFFBF5",
+          black: "#1A1A1A",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

@@ -50,6 +50,9 @@ function App() {
              </>
           )}
         </Route>
+
+        {/* Catch-all route to prevent blank page on unknown routes or after logout */}
+        <Route path="*" element={<Navigate to={user ? "/" : "/login"} replace />} />
       </Routes>
     </BrowserRouter>
    </QueryClientProvider>

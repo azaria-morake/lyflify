@@ -23,7 +23,11 @@ if not firebase_admin._apps:
     else:
         print("CRITICAL WARNING: No Firebase Credentials found.")
 
-db = firestore.client()
+try:
+    db = firestore.client() if firebase_admin._apps else None
+except Exception as e:
+    db = None
+    print(f"WARNING: Firestore client could not be initialized: {e}")
 
 # --- 2. PROMPT MANAGEMENT (NEW) ---
 
@@ -33,17 +37,18 @@ def get_system_prompt(prompt_id: str) -> str:
     Fetches a raw prompt template from Firestore.
     Includes caching to prevent excessive DB reads.
     """
-    try:
-        doc = db.collection('system_prompts').document(prompt_id).get()
-        if doc.exists:
-            return doc.to_dict().get('text', "")
-    except Exception as e:
-        print(f"Error fetching prompt {prompt_id}: {e}")
+    if db is not None:
+        try:
+            doc = db.collection('system_prompts').document(prompt_id).get()
+            if doc.exists:
+                return doc.to_dict().get('text', "")
+        except Exception as e:
+            print(f"Error fetching prompt {prompt_id}: {e}")
     
     # Fallbacks in case Firestore is unreachable or empty
     defaults = {
-        "triage_nurse": "You are a helpful nurse. You are speaking to {context_str}.",
-        "health_summary": "Summarize the patient health."
+        "triage_nurse": "You are Sindi, an empathetic triage assistant for Sindi clinics. Always converse exclusively in English. If the user asks for another language, politely explain in English: 'Xolo (Sorry), I am only able to assist in English to ensure your medical guidance is safe and accurate. Please tell me your symptoms in English.' You are speaking to {context_str}.",
+        "health_summary": "Summarize the patient health in simple English."
     }
     return defaults.get(prompt_id, "You are a helpful assistant.")
 
@@ -51,17 +56,23 @@ def get_system_prompt(prompt_id: str) -> str:
 
 def get_queue():
     """Fetches all patients from Firestore"""
+    if db is None:
+        return []
     users_ref = db.collection('queue')
     docs = users_ref.stream()
     return [{**doc.to_dict(), "id": doc.id} for doc in docs]
 
 def add_to_queue(booking_data):
     """Adds a new patient to Firestore"""
+    if db is None:
+        return {**booking_data, "id": "mock_id"}
     update_time, ref = db.collection('queue').add(booking_data)
     return {**booking_data, "id": ref.id}
 
 def update_booking_by_doc_id(doc_id, updates):
     """Updates a document directly by its Firestore ID"""
+    if db is None:
+        return True
     try:
         doc_ref = db.collection('queue').document(doc_id)
         doc_ref.update(updates)
@@ -72,6 +83,8 @@ def update_booking_by_doc_id(doc_id, updates):
 
 def update_booking_in_db(patient_id, updates):
     """Finds a patient by ID and updates their status/time"""
+    if db is None:
+        return True
     docs = db.collection('queue').where('patient_id', '==', patient_id).stream()
     for doc in docs:
         doc.reference.update(updates)
@@ -80,6 +93,8 @@ def update_booking_in_db(patient_id, updates):
 
 def delete_booking(patient_id):
     """Finds a patient by ID and deletes the record"""
+    if db is None:
+        return True
     docs = db.collection('queue').where('patient_id', '==', patient_id).stream()
     for doc in docs:
         doc.reference.delete()
@@ -88,6 +103,8 @@ def delete_booking(patient_id):
 
 def seed_queue(data):
     """Resets the DB for demos"""
+    if db is None:
+        return True
     collection = db.collection('queue')
     for doc in collection.stream():
         doc.reference.delete()
@@ -99,11 +116,15 @@ def seed_queue(data):
 
 def add_patient_record(data):
     """Saves a new medical record"""
+    if db is None:
+        return True
     db.collection('records').add(data)
     return True
 
 def get_patient_records(patient_id):
     """Fetches medical history for a patient"""
+    if db is None:
+        return []
     docs = db.collection('records').where('patient_id', '==', patient_id).stream()
     records = [{**doc.to_dict(), "id": doc.id} for doc in docs]
     records.sort(key=lambda x: x.get('created_at', x.get('date', '')), reverse=True)
@@ -111,6 +132,8 @@ def get_patient_records(patient_id):
 
 def seed_records(patient_id):
     """Seeds dummy records for the demo user if none exist"""
+    if db is None:
+        return True
     records_ref = db.collection('records')
     dummy_data = [
         {
@@ -137,6 +160,8 @@ def seed_records(patient_id):
     return True
 
 def get_unique_patients():
+    if db is None:
+        return []
     docs = db.collection('records').stream()
     registry = {}
     for doc in docs:

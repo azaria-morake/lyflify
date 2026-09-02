@@ -1,33 +1,30 @@
-import { Link, useNavigate } from 'react-router-dom';
-import { useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import { 
-  Activity, Clock, Bot, MapPin, AlertTriangle, UserRound, CalendarClock, 
-  Hourglass, Trash2, ChevronRight, ChevronLeft, ArrowRight, XCircle, LogOut, FileText, Sparkles, HeartPulse, BrainCircuit
+  ChevronRight, ArrowRight, Clock, AlertTriangle, 
+  Trash2, XCircle, Hourglass, HeartPulse, Sparkles,
+  CheckCircle2, Pill, Activity, Bot
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/store';
 import api from '../../lib/api';
 import { Button } from '../../components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
-import { ServerStatus } from '@/components/custom/ServerStatus';
-
-// --- CUSTOM META ICON COMPONENT ---
-export function MetaIcon({ size = 20, className = "" }) {
-  return (
-    <svg
-      viewBox="0 0 512 512"
-      width={size}
-      height={size}
-      fill="currentColor"
-      aria-label="Meta"
-      role="img"
-      className={className}
-    >
-      <path d="M384.6 96c-47.9 0-82.9 36.2-122.6 100.7C222.5 135.4 184.7 96 137.4 96 62.6 96 0 191.2 0 274.3 0 323.6 25.4 352 64.1 352c26.4 0 46.3-12.5 79.8-71.7l69.6-122.6c13.2 21.6 28 47.6 40.5 69.6l41.3 73.6c33.4 59.1 53.4 71.1 80.7 71.1 42.5 0 68.6-34.1 68.6-97.8 0-94.9-63.5-178.2-139-178.2ZM145.7 248.7c-39.9 69.6-55.2 88.7-76.8 88.7-23.3 0-36.2-19.6-36.2-61.5 0-83.6 41.7-151.4 94.9-151.4 28.8 0 53.4 20.2 85.8 69.2-23.8 43.4-40 75-67.7 124.9Zm204.4-7.4-46.7-78.1c-11.5-19.5-22.6-36.7-33.8-52.6 25.8-38.7 52.2-60.3 83.9-60.3 55.8 0 100.5 71.7 100.5 161.7 0 42.1-14 65.6-39.4 65.6-22.7 0-37.4-14.5-64.5-36.3Z" />
-    </svg>
-  );
-}
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogDescription 
+} from '@/components/ui/dialog';
+import { 
+  SindiLogo, 
+  ChatIcon, 
+  BookClinicIcon, 
+  RecordsIcon, 
+  HealthTipsIcon, 
+  QueueIcon 
+} from '@/assets/sindiAssets';
 
 // --- FETCHERS ---
 const fetchCarePath = async () => {
@@ -47,14 +44,11 @@ const fetchHealthPulse = async () => {
 
 export default function PatientHome() {
   const queryClient = useQueryClient();
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const logout = useAuthStore((state) => state.logout);
+  const user = useAuthStore((state) => state.user);
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
+  const [healthTipsOpen, setHealthTipsOpen] = useState(false);
+  const [queueModalOpen, setQueueModalOpen] = useState(false);
 
   const { data: appointments, isLoading } = useQuery({
     queryKey: ['carePath'],
@@ -87,253 +81,386 @@ export default function PatientHome() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['carePath'] })
   });
 
-  const scroll = (direction: 'left' | 'right') => {
-    if (scrollRef.current) {
-      const { current } = scrollRef;
-      const scrollAmount = direction === 'left' ? -current.offsetWidth : current.offsetWidth;
-      current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
-    }
-  };
-
-  const hasAppointments = appointments && appointments.length > 0;
+  const activeApt = appointments && appointments.length > 0 ? appointments[0] : null;
 
   return (
-    <div className="p-4 space-y-6 bg-slate-50 min-h-screen pb-24 md:pb-6">
-      {/* Header */}
-      <header className="bg-white p-6 -mx-4 -mt-4 mb-2 border-b shadow-sm md:rounded-xl md:mx-0 md:mt-0">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800">Sawubona, Thabo</h1>
-            <p className="text-slate-500 text-sm">Welcome back to LyfLify</p>
-          </div>
-          <div className="flex items-center gap-3">
-             <Button variant="ghost" size="icon" onClick={handleLogout} className="md:hidden text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full">
-               <LogOut className="w-5 h-5" />
-             </Button>
-             <div className="h-10 w-10 bg-teal-100 rounded-full flex items-center justify-center text-teal-800 font-bold border border-teal-200 shadow-sm">GD</div>
-          </div>
-        </div>
-      </header>
-
-      <div className="space-y-2">
-        <div className="flex justify-between items-center px-1">
-          <h3 className="font-semibold text-slate-700">My Appointments</h3>
-          {hasAppointments && (
-            <div className="flex gap-2">
-              <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => scroll('left')}><ChevronLeft className="h-4 w-4" /></Button>
-              <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => scroll('right')}><ChevronRight className="h-4 w-4" /></Button>
-            </div>
-          )}
-        </div>
-
-        <div ref={scrollRef} className="flex overflow-x-auto gap-4 pb-4 snap-x snap-mandatory -mx-4 px-4 scrollbar-hide md:grid md:grid-cols-2 lg:grid-cols-3 md:overflow-visible md:mx-0 md:px-0">
-          
-          {isLoading && (
-             <div className="min-w-[90%] md:w-full snap-center">
-                <ServerStatus />
-             </div>
-          )}
-
-          {(!hasAppointments && !isLoading) && (
-            <Card className="min-w-[90%] md:w-full snap-center p-8 text-center border-dashed border-2 border-slate-200 bg-white/50">
-              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CalendarClock className="w-8 h-8 text-slate-300" />
-              </div>
-              <h3 className="font-medium text-slate-900 text-lg">No active appointments</h3>
-              <p className="text-slate-500 mb-6 text-sm">Your upcoming clinic visits will appear here.</p>
-            </Card>
-          )}
-
-          {appointments?.map((apt: any, i: number) => {
-             const isDelayed = apt.status === "Delayed";
-             const isUrgent = apt.color_code === "red" && !isDelayed;
-             const isPending = apt.status === "Pending Approval";
-             const isCancelled = apt.status === "Cancelled";
-             const isConfirmed = apt.status === "Confirmed";
-             
-             let theme = "border-slate-100 bg-white";
-             if (isDelayed) theme = "border-red-200 bg-red-50";
-             if (isUrgent) theme = "border-red-200 bg-red-50";
-             if (isPending) theme = "border-slate-200 bg-slate-50";
-             if (isConfirmed) theme = "border-teal-200 bg-teal-50";
-             if (isCancelled) theme = "border-slate-200 bg-slate-100 opacity-90";
-
-             return (
-              <Card key={apt.id || i} className={`min-w-[90%] md:w-full snap-center shadow-md transition-all duration-500 flex flex-col relative md:min-w-0 md:snap-align-none ${theme}`}>
-                <div className="absolute top-4 right-4 z-10">
-                  <Button variant="ghost" size="icon" className={`h-8 w-8 ${isCancelled ? 'text-red-500 hover:text-red-700 hover:bg-red-100' : 'text-slate-300'}`} disabled={!isCancelled} onClick={() => deleteMutation.mutate(apt.id)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                <CardHeader className="pb-2">
-                  <div className="flex justify-between items-start pr-8">
-                    <CardTitle className={`text-lg ${isDelayed ? 'text-red-800' : 'text-slate-800'}`}>
-                      {isPending ? "Request Sent" : isCancelled ? "Visit Cancelled" : "Current Visit"}
-                    </CardTitle>
-                    <Badge variant={isDelayed || isUrgent || isCancelled ? 'destructive' : 'secondary'} className={isCancelled ? 'bg-slate-600' : ''}>
-                      {apt.status}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                
-                <CardContent className="flex-1 flex flex-col gap-4">
-                  <div className="flex items-center space-x-4">
-                    <div className={`p-3 rounded-lg ${isDelayed ? 'bg-red-100' : 'bg-white shadow-sm'}`}>
-                      {isDelayed ? <AlertTriangle className="w-8 h-8 text-red-600" /> : 
-                       isPending ? <Hourglass className="w-8 h-8 text-slate-500" /> :
-                       isCancelled ? <XCircle className="w-8 h-8 text-slate-400" /> :
-                       <Clock className="w-8 h-8 text-teal-600" />}
-                    </div>
-                    <div>
-                      {isPending ? (
-                        <div className="flex flex-col">
-                          <p className="font-semibold text-slate-700 text-lg">Waiting for Approval...</p>
-                          <div className="flex items-center gap-1.5 mt-1 bg-teal-50 px-2 py-0.5 rounded text-xs text-teal-700 font-medium w-fit">
-                            <span className="relative flex h-2 w-2">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-500"></span>
-                            </span>
-                            Live Queue: #{i + 1 + 2}
-                          </div>
-                        </div>
-                      ) : isCancelled ? (
-                        <p className="font-semibold text-slate-500 text-lg">Booking Removed</p>
-                      ) : (
-                        <>
-                          <p className={`font-bold text-2xl ${isDelayed ? 'text-red-700' : 'text-slate-900'}`}>
-                            {apt.estimated_time}
-                          </p>
-                          <p className="text-slate-500 text-xs uppercase tracking-wide font-medium">Estimated Start Time</p>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="pl-3 border-l-2 border-slate-300/50 space-y-2">
-                      <div className="text-sm">
-                        <span className="text-slate-400 text-xs block mb-0.5">Reason for visit</span>
-                        <span className="font-medium text-slate-800">{apt.symptoms || "General Checkup"}</span>
-                      </div>
-                      <div className="text-sm">
-                         <span className="text-slate-400 text-xs block mb-0.5">Assigned to</span>
-                         <div className="flex items-center font-medium text-slate-700">
-                            <UserRound className="w-3 h-3 mr-1 text-slate-400" />
-                            Dr. Nkosi ({apt.ticket_score})
-                         </div>
-                      </div>
-                  </div>
-
-                  <div className={`text-xs p-3 rounded-md border flex gap-2 items-start mt-auto ${isDelayed ? 'bg-red-600 text-white border-red-700' : 'bg-white text-slate-600 border-slate-200'}`}>
-                    <MapPin className="w-4 h-4 shrink-0 mt-0.5" />
-                    <span>{apt.advice}</span>
-                  </div>
-
-                  {!isCancelled && (
-                    <Button variant="ghost" size="sm" className="w-full text-red-500 hover:text-red-700 hover:bg-red-50 -mb-2" onClick={() => cancelMutation.mutate(apt.id)} disabled={cancelMutation.isPending}>
-                      {cancelMutation.isPending ? "Updating..." : "Cancel Appointment"}
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-             );
-          })}
-        </div>
-      </div>
-
-      {/* --- 3. PERSISTENT TRIAGE CTA --- */}
-      <div className="bg-white p-6 rounded-xl border shadow-sm text-center space-y-4">
-        <div className="w-12 h-12 bg-teal-50 rounded-full flex items-center justify-center mx-auto">
-          <Activity className="w-6 h-6 text-teal-600" />
+    <div className="p-4 sm:p-6 space-y-6 bg-[#FAF7F2] min-h-screen pb-28 md:pb-8">
+      
+      {/* 1. TOP HEADER: SINDI CHAT (Exact match with SINDI_CHAT_V2_dashboard.png) */}
+      <div className="flex items-center gap-4 pt-2">
+        <div className="w-16 h-16 rounded-full bg-[#0A7D6F] p-1 flex items-center justify-center shrink-0 shadow-md border-2 border-white">
+          <img 
+            src={SindiLogo} 
+            alt="Sindi" 
+            className="w-full h-full object-contain rounded-full"
+          />
         </div>
         <div>
-          <h3 className="font-semibold text-lg">Feeling Unwell?</h3>
-          <p className="text-slate-500 text-sm">Tell us your symptoms before you come to the clinic.</p>
+          <h1 className="text-3xl font-black text-[#053B36] tracking-tight uppercase leading-none">
+            SINDI CHAT
+          </h1>
         </div>
-        <Link to="/triage" className="block w-full"> 
-          <Button size="lg" className="w-full h-12 text-base shadow-teal-900/10 shadow-lg bg-teal-600 hover:bg-teal-700">
-            Start Triage Check <ArrowRight className="w-4 h-4 ml-2" />
-          </Button>
-        </Link>
       </div>
 
-      {/* --- AI HEALTH PULSE CARD (UPDATED: Clean Pill Icon) --- */}
-      <div className="space-y-2">
-        <h3 className="font-semibold text-slate-700 px-1 flex items-center gap-3">
-          
-          {/* THE NEW CLEAN BADGE - MATCHES SCREENSHOT */}
-          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-full px-3 py-1.5 shadow-sm">
-             <Activity className="w-5 h-5 text-teal-600" />
-             <div className="w-px h-4 bg-slate-200" />
-             <MetaIcon className="w-5 h-5 text-[#0081FB]" /> {/* Official Meta Blue */}
+      {/* 2. GREETING */}
+      <div className="space-y-1">
+        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+          Molo, {user?.name?.split(' ')[0] || "Thandi"}
+        </h2>
+        <p className="text-slate-500 text-sm font-medium">
+          How can we help you today?
+        </p>
+      </div>
+
+      {/* 3. HERO ACTION CARD: "Talk to Sindi" (Exact match) */}
+      <div 
+        onClick={() => navigate('/triage')}
+        className="bg-[#0A7D6F] hover:bg-[#086b5e] rounded-[24px] p-5 flex items-center justify-between text-white cursor-pointer shadow-[0_10px_25px_rgba(10,125,111,0.25)] transition-all transform active:scale-[0.99] group"
+      >
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center shrink-0 border border-white/20">
+            <img 
+              src={ChatIcon} 
+              alt="Chat" 
+              className="w-8 h-8 object-contain drop-shadow" 
+            />
           </div>
-          
-          <span className="font-bold text-sm md:text-base bg-clip-text text-transparent bg-gradient-to-r from-teal-700 to-blue-700">
-            LyfLify Llama 3 Health Pulse
-          </span>
+          <div>
+            <h3 className="font-bold text-lg leading-snug">
+              Talk to Sindi
+            </h3>
+            <p className="text-white/80 text-xs mt-0.5 font-medium">
+              Ask health questions • 24/7 available
+            </p>
+          </div>
+        </div>
+        <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center group-hover:translate-x-1 transition-transform">
+          <ChevronRight className="w-5 h-5 text-white" />
+        </div>
+      </div>
+
+      {/* 4. QUICK ACTIONS (2x2 Grid, matching SINDI_CHAT_V2_dashboard.png) */}
+      <div className="space-y-3">
+        <h3 className="font-bold text-lg text-slate-900 tracking-tight">
+          Quick actions
         </h3>
 
-        {loadingAi ? (
-          <ServerStatus />
-        ) : (
-          <div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-5 rounded-xl shadow-lg text-white relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10" />
-            
-            <div className="flex justify-between items-start relative z-10">
-              <div>
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-white/20 text-white mb-2 uppercase tracking-wide">
-                  Analysis Complete
-                </span>
-                <h4 className="text-lg font-bold flex items-center gap-2">
-                  Status: {aiPulse?.status}
-                </h4>
-              </div>
-              <HeartPulse className="w-8 h-8 text-indigo-200 opacity-80" />
+        <div className="grid grid-cols-2 gap-3.5">
+          
+          {/* Action 1: Book Clinic */}
+          <div 
+            onClick={() => navigate('/triage')}
+            className="bg-white rounded-2xl p-4 flex flex-col items-center justify-center text-center shadow-sm border border-slate-100 hover:shadow-md hover:border-[#0A7D6F]/30 transition-all cursor-pointer group"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-[#EAF5F3] flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
+              <img 
+                src={BookClinicIcon} 
+                alt="Book Clinic" 
+                className="w-9 h-9 object-contain" 
+              />
             </div>
-            
-            <p className="mt-2 text-indigo-50 text-sm leading-relaxed">
-              "{aiPulse?.summary}"
-            </p>
-            
-            <div className="mt-4 pt-3 border-t border-white/20 flex items-start gap-2">
-              <span className="bg-white/20 p-1 rounded-full"><Bot className="w-3 h-3" /></span>
-              <p className="text-xs text-indigo-100 font-medium italic">Tip: {aiPulse?.tip}</p>
-            </div>
+            <span className="font-bold text-sm text-slate-800">
+              Book Clinic
+            </span>
           </div>
-        )}
+
+          {/* Action 2: My Records */}
+          <div 
+            onClick={() => navigate('/records')}
+            className="bg-white rounded-2xl p-4 flex flex-col items-center justify-center text-center shadow-sm border border-slate-100 hover:shadow-md hover:border-[#0A7D6F]/30 transition-all cursor-pointer group"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-[#EAF5F3] flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
+              <img 
+                src={RecordsIcon} 
+                alt="My Records" 
+                className="w-9 h-9 object-contain" 
+              />
+            </div>
+            <span className="font-bold text-sm text-slate-800">
+              My Records
+            </span>
+          </div>
+
+          {/* Action 3: Health Tips */}
+          <div 
+            onClick={() => setHealthTipsOpen(true)}
+            className="bg-white rounded-2xl p-4 flex flex-col items-center justify-center text-center shadow-sm border border-slate-100 hover:shadow-md hover:border-[#0A7D6F]/30 transition-all cursor-pointer group"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-[#EAF5F3] flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
+              <img 
+                src={HealthTipsIcon} 
+                alt="Health Tips" 
+                className="w-9 h-9 object-contain" 
+              />
+            </div>
+            <span className="font-bold text-sm text-slate-800">
+              Health Tips
+            </span>
+          </div>
+
+          {/* Action 4: Queue Status */}
+          <div 
+            onClick={() => setQueueModalOpen(true)}
+            className="bg-white rounded-2xl p-4 flex flex-col items-center justify-center text-center shadow-sm border border-slate-100 hover:shadow-md hover:border-[#0A7D6F]/30 transition-all cursor-pointer group"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-[#EAF5F3] flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
+              <img 
+                src={QueueIcon} 
+                alt="Queue Status" 
+                className="w-9 h-9 object-contain" 
+              />
+            </div>
+            <span className="font-bold text-sm text-slate-800">
+              Queue Status
+            </span>
+            <span className="text-[11px] font-semibold text-[#0A7D6F] mt-0.5">
+              {activeApt ? `${activeApt.status} • ${activeApt.estimated_time || "~10 min"}` : "2 ahead • ~10 min"}
+            </span>
+          </div>
+
+        </div>
       </div>
 
-      {/* Recent Updates (Live Data) */}
-      <div className="space-y-3 pb-4">
-        <h3 className="font-semibold text-slate-700 px-1">Recent Updates</h3>
-        {latestRecord ? (
-          <div className="bg-white p-4 rounded-xl border flex items-center space-x-3 shadow-sm cursor-pointer hover:border-teal-200 transition-colors" onClick={() => navigate('/records')}>
-            <div className="bg-blue-50 p-2 rounded-full">
-              <FileText className="w-5 h-5 text-blue-600" />
+      {/* 5. ACTIVE APPOINTMENT ALERT (If patient has active visit) */}
+      {activeApt && (
+        <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-[#0A7D6F]/10 flex items-center justify-center">
+                <Clock className="w-4 h-4 text-[#0A7D6F]" />
+              </div>
+              <span className="font-bold text-sm text-slate-800">Active Clinic Visit</span>
             </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-slate-800">
-                New Health Record Added
-                <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-800">NEW</span>
-              </p>
-              <p className="text-xs text-slate-500 truncate mt-0.5">
-                {latestRecord.diagnosis} • Treated by {latestRecord.doctor}
-              </p>
-            </div>
-            <span className="text-[10px] text-slate-400 whitespace-nowrap">{latestRecord.date}</span>
+            <Badge 
+              variant={activeApt.status === "Delayed" ? "destructive" : "secondary"}
+              className={activeApt.status === "Confirmed" ? "bg-[#0A7D6F] text-white" : ""}
+            >
+              {activeApt.status}
+            </Badge>
           </div>
-        ) : (
-          <div className="bg-white p-4 rounded-xl border flex items-center space-x-3 shadow-sm opacity-60">
-            <div className="bg-slate-50 p-2 rounded-full">
-              <Bot className="w-5 h-5 text-slate-400" />
+
+          <div className="flex items-baseline justify-between pt-1">
+            <div>
+              <p className="text-xs text-slate-400 font-semibold uppercase">Estimated Start Time</p>
+              <p className="text-2xl font-black text-slate-900">{activeApt.estimated_time || "10:30 AM"}</p>
             </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-slate-700">LyfLify Assistant</p>
-              <p className="text-xs text-slate-500">Records loading. Please wait for server response.</p>
+            <div className="text-right">
+              <p className="text-xs text-slate-400 font-semibold uppercase">Reason</p>
+              <p className="text-sm font-bold text-slate-700">{activeApt.symptoms || "General Checkup"}</p>
             </div>
           </div>
-        )}
+
+          <div className="p-3 bg-slate-50 rounded-xl text-xs text-slate-600 flex items-start gap-2">
+            <span className="font-bold text-[#0A7D6F]">Clinic Advice:</span>
+            <span>{activeApt.advice || "Please take a seat in the waiting hall."}</span>
+          </div>
+
+          <div className="flex gap-2 pt-1">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="w-full text-xs text-red-600 hover:bg-red-50 hover:text-red-700 border-red-100"
+              onClick={() => cancelMutation.mutate(activeApt.id)}
+              disabled={cancelMutation.isPending}
+            >
+              Cancel Appointment
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* 6. RECENT CHATS (Matching SINDI_CHAT_V2_dashboard.png) */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-lg text-slate-900 tracking-tight">
+            Recent chats
+          </h3>
+          <button 
+            onClick={() => navigate('/records')}
+            className="text-xs font-bold text-[#0A7D6F] flex items-center hover:underline"
+          >
+            See all <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
+          </button>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 divide-y divide-slate-100 overflow-hidden">
+          
+          {/* Row 1: Doctor Consultation */}
+          <div 
+            onClick={() => navigate('/records')}
+            className="p-4 flex items-center justify-between hover:bg-slate-50/80 transition-colors cursor-pointer"
+          >
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-full bg-[#0A7D6F] flex items-center justify-center shrink-0 shadow-sm border border-teal-200">
+                {/* Doctor Avatar */}
+                <div className="w-7 h-7 rounded-full bg-[#FAF7F2] flex items-center justify-center text-[#0A7D6F] font-bold text-xs">
+                  👨‍⚕️
+                </div>
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-slate-900">
+                  Consultation with Dr. Nkosi
+                </h4>
+                <p className="text-xs text-slate-500 line-clamp-1 mt-0.5">
+                  {latestRecord ? `Diagnosis: ${latestRecord.diagnosis}` : "You: Thanks, I will take the medication"}
+                </p>
+              </div>
+            </div>
+            <span className="text-xs text-slate-400 font-medium whitespace-nowrap pl-2">
+              10:32 AM
+            </span>
+          </div>
+
+          {/* Row 2: Prescription Follow-up */}
+          <div 
+            onClick={() => navigate('/records')}
+            className="p-4 flex items-center justify-between hover:bg-slate-50/80 transition-colors cursor-pointer"
+          >
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-full bg-[#0A7D6F] flex items-center justify-center shrink-0 shadow-sm text-white">
+                <Pill className="w-5 h-5 -rotate-45" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-slate-900">
+                  Prescription Follow-up
+                </h4>
+                <p className="text-xs text-slate-500 line-clamp-1 mt-0.5">
+                  Reminder: Take 1 tablet after meals
+                </p>
+              </div>
+            </div>
+            <span className="text-xs text-slate-400 font-medium whitespace-nowrap pl-2">
+              Yesterday
+            </span>
+          </div>
+
+          {/* Row 3: Lab Results Ready */}
+          <div 
+            onClick={() => navigate('/records')}
+            className="p-4 flex items-center justify-between hover:bg-slate-50/80 transition-colors cursor-pointer"
+          >
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-full bg-[#0A7D6F] flex items-center justify-center shrink-0 shadow-sm text-white">
+                <Activity className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-slate-900">
+                  Lab Results Ready
+                </h4>
+                <p className="text-xs text-slate-500 line-clamp-1 mt-0.5">
+                  Your bloodwork is now available to view
+                </p>
+              </div>
+            </div>
+            <span className="text-xs text-slate-400 font-medium whitespace-nowrap pl-2">
+              14 Oct
+            </span>
+          </div>
+
+        </div>
       </div>
+
+      {/* HEALTH TIPS DIALOG (Sindi AI Pulse) */}
+      <Dialog open={healthTipsOpen} onOpenChange={setHealthTipsOpen}>
+        <DialogContent className="max-w-md rounded-[28px] p-6 bg-white border border-slate-100">
+          <DialogHeader>
+            <div className="w-12 h-12 rounded-2xl bg-[#0A7D6F]/10 flex items-center justify-center mb-2">
+              <img src={HealthTipsIcon} alt="Health" className="w-8 h-8 object-contain" />
+            </div>
+            <DialogTitle className="text-xl font-bold text-[#053B36]">
+              Sindi Health Tips & Pulse
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Personalized AI health insights based on your medical records
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-2">
+            <div className="bg-[#FAF7F2] p-4 rounded-2xl border border-amber-100 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#0A7D6F]">
+                  Analysis Status
+                </span>
+                <Badge className="bg-[#0A7D6F] text-white text-[10px]">
+                  {aiPulse?.status || "Stable"}
+                </Badge>
+              </div>
+              <p className="text-sm text-slate-700 leading-relaxed font-medium">
+                "{aiPulse?.summary || "Your records show recovery progress. Remember to follow your medication timing and stay hydrated."}"
+              </p>
+            </div>
+
+            <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 flex items-start gap-3">
+              <div className="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 mt-0.5">
+                <Bot className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-emerald-900">Sindi's Daily Recommendation</p>
+                <p className="text-xs text-emerald-700 mt-1 font-medium">
+                  {aiPulse?.tip || "Drink at least 2 litres of water today and rest if you feel fatigue."}
+                </p>
+              </div>
+            </div>
+
+            <Button 
+              onClick={() => setHealthTipsOpen(false)}
+              className="w-full bg-[#0A7D6F] hover:bg-[#086b5e] text-white rounded-xl font-bold"
+            >
+              Thank you, Sindi
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* QUEUE STATUS MODAL */}
+      <Dialog open={queueModalOpen} onOpenChange={setQueueModalOpen}>
+        <DialogContent className="max-w-md rounded-[28px] p-6 bg-white border border-slate-100">
+          <DialogHeader>
+            <div className="w-12 h-12 rounded-2xl bg-[#0A7D6F]/10 flex items-center justify-center mb-2">
+              <img src={QueueIcon} alt="Queue" className="w-8 h-8 object-contain" />
+            </div>
+            <DialogTitle className="text-xl font-bold text-[#053B36]">
+              Live Clinic Queue Status
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Real-time waiting time and queue position at Sindi Community Clinic
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-2">
+            <div className="bg-[#FAF7F2] p-5 rounded-2xl text-center space-y-2 border border-slate-200/60">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Current Queue Position</span>
+              <div className="text-4xl font-black text-[#0A7D6F]">
+                {activeApt ? "Next in Line" : "2 Ahead"}
+              </div>
+              <p className="text-xs text-slate-600 font-medium">
+                Estimated wait time: <span className="font-bold text-slate-900">~10 minutes</span>
+              </p>
+            </div>
+
+            {activeApt && (
+              <div className="p-3 bg-slate-50 rounded-xl text-xs space-y-1 text-slate-700">
+                <div className="flex justify-between">
+                  <span>Visit Reason:</span>
+                  <span className="font-bold">{activeApt.symptoms}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Doctor:</span>
+                  <span className="font-bold">Dr. Nkosi</span>
+                </div>
+              </div>
+            )}
+
+            <Button 
+              onClick={() => setQueueModalOpen(false)}
+              className="w-full bg-[#0A7D6F] hover:bg-[#086b5e] text-white rounded-xl font-bold"
+            >
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }

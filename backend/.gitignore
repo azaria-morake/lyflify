@@ -1,5 +1,7 @@
 venv/
 __pycache__/
 serviceAccountKey.json
-.env
-.env.groq
+.env*
+*.env*
+.vercel
+

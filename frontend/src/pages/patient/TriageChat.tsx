@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, AlertCircle, CheckCircle2, User, RefreshCcw } from 'lucide-react';
+import { AlertCircle, CheckCircle2, User, RefreshCcw, ArrowLeft, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useMutation } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
+import { SindiLogo, SendIcon } from '@/assets/sindiAssets';
 
 type TriageData = {
   urgency_score: number;
@@ -28,7 +29,7 @@ export default function TriageChat() {
   const navigate = useNavigate();
   
   const [messages, setMessages] = useState<Message[]>(() => {
-    const saved = localStorage.getItem('lyflify_chat_history');
+    const saved = localStorage.getItem('sindi_chat_history');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -39,7 +40,7 @@ export default function TriageChat() {
     return [{ 
       id: 1, 
       role: 'assistant', 
-      content: `Sawubona ${user?.name || "there"}! I'm Nurse Nandiphiwe. How are you feeling today?` 
+      content: `Sawubona ${user?.name ? user.name.split(' ')[0] : "there"}! I'm Sindi, your AI health assistant. How are you feeling today?` 
     }];
   });
   
@@ -47,7 +48,7 @@ export default function TriageChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    localStorage.setItem('lyflify_chat_history', JSON.stringify(messages));
+    localStorage.setItem('sindi_chat_history', JSON.stringify(messages));
     scrollToBottom();
   }, [messages]);
 
@@ -57,10 +58,10 @@ export default function TriageChat() {
     const resetMsg: Message[] = [{ 
       id: Date.now(), 
       role: 'assistant', 
-      content: `Sawubona! I've cleared our chat. How can I help you now?` 
+      content: `Molo! I've cleared our chat. How can I help you today?` 
     }];
     setMessages(resetMsg);
-    localStorage.removeItem('lyflify_chat_history');
+    localStorage.removeItem('sindi_chat_history');
   };
 
   const chatMutation = useMutation({
@@ -91,7 +92,7 @@ export default function TriageChat() {
       setMessages(prev => [...prev, { 
         id: Date.now(), 
         role: 'assistant', 
-        content: "⚠️ Network Error: I couldn't reach the clinic. Please check your internet and try again." 
+        content: "⚠️ Network Error: I couldn't reach the clinic server. Please check your connection and try again." 
       }]);
     }
   });
@@ -100,7 +101,7 @@ export default function TriageChat() {
     mutationFn: async (triageData: any) => {
       await api.post('/booking/create', {
         patient_id: "demo_user",
-        patient_name: user?.name || "Gogo Dlamini",
+        patient_name: user?.name || "Patient",
         triage_score: triageData.color_code, 
         symptoms: messages[messages.length - 2]?.content || "Chat Consultation"
       });
@@ -120,79 +121,108 @@ export default function TriageChat() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 relative">
+    <div className="flex flex-col h-full bg-[#FAF7F2] relative">
       
-      {/* Header */}
-      <div className="bg-white border-b p-4 flex items-center justify-between shadow-sm shrink-0 z-10">
-        <div className="flex items-center">
-          <div className="bg-teal-100 p-2 rounded-full mr-3">
-            <Bot className="w-5 h-5 text-teal-700" />
+      {/* Sindi Top Header */}
+      <div className="bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 py-3 flex items-center justify-between shadow-sm shrink-0 z-10">
+        <div className="flex items-center gap-3">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => navigate('/')}
+            className="md:hidden -ml-2 text-slate-500 hover:text-slate-800"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+
+          <div className="w-10 h-10 rounded-full bg-[#0A7D6F] p-0.5 flex items-center justify-center shrink-0 shadow-sm border border-white">
+            <img 
+              src={SindiLogo} 
+              alt="Sindi" 
+              className="w-full h-full object-contain rounded-full" 
+            />
           </div>
           <div>
-            <h2 className="font-bold text-slate-800">Nurse Nandi</h2>
-            <p className="text-xs text-slate-500">AI Triage Assistant</p>
+            <div className="flex items-center gap-1.5">
+              <h2 className="font-extrabold text-[#053B36] text-base leading-tight">Sindi</h2>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
+            </div>
+            <p className="text-[11px] text-slate-500 font-medium">
+              AI Health Assistant • Sindi Care
+            </p>
           </div>
         </div>
         
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={clearChat}
-          className="text-slate-400 hover:text-red-500 hover:bg-red-50"
-          title="Restart Conversation"
-        >
-          <RefreshCcw className="w-4 h-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={clearChat}
+            className="text-slate-500 hover:text-[#E04030] hover:bg-red-50 text-xs rounded-full px-3"
+            title="Restart Conversation"
+          >
+            <RefreshCcw className="w-3.5 h-3.5 mr-1" /> Clear
+          </Button>
+        </div>
       </div>
 
-      {/* Chat Area - Added Scrollbar Hiding */}
+      {/* Trust & Safety Banner */}
+      <div className="bg-[#EAF5F3] px-4 py-1.5 border-b border-[#0A7D6F]/10 flex items-center justify-center gap-1.5 text-[11px] text-[#0A7D6F] font-semibold shrink-0">
+        <ShieldCheck className="w-3.5 h-3.5" />
+        <span>Confidential & Secure Health Consultation</span>
+      </div>
+
+      {/* Chat Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             
             {msg.role === 'assistant' && (
-              <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center mr-2 shrink-0">
-                <Bot className="w-4 h-4 text-teal-700" />
+              <div className="w-8 h-8 rounded-full bg-[#0A7D6F] p-0.5 flex items-center justify-center mr-2 shrink-0 shadow-sm border border-white">
+                <img src={SindiLogo} alt="Sindi" className="w-full h-full object-contain rounded-full" />
               </div>
             )}
 
-            <div className={`max-w-[80%] rounded-2xl p-3 text-sm shadow-sm ${
+            <div className={`max-w-[82%] rounded-[20px] p-3.5 text-sm shadow-sm leading-relaxed ${
               msg.role === 'user' 
-                ? 'bg-teal-600 text-white rounded-br-none' 
-                : 'bg-white border border-slate-200 text-slate-700 rounded-bl-none'
+                ? 'bg-[#0A7D6F] text-white rounded-br-xs' 
+                : 'bg-white border border-slate-200/80 text-slate-800 rounded-bl-xs'
             }`}>
-              <p>{msg.content}</p>
+              <p className="whitespace-pre-wrap">{msg.content}</p>
 
               {msg.triageResult && (
-                <Card className={`mt-3 border-l-4 overflow-hidden ${
-                  msg.triageResult.color_code === 'red' ? 'border-l-red-500 bg-red-50' :
-                  msg.triageResult.color_code === 'orange' ? 'border-l-orange-500 bg-orange-50' :
-                  'border-l-green-500 bg-green-50'
+                <Card className={`mt-3 border-l-4 overflow-hidden shadow-sm ${
+                  msg.triageResult.color_code === 'red' ? 'border-l-[#E04030] bg-red-50/70 border-red-100' :
+                  msg.triageResult.color_code === 'orange' ? 'border-l-amber-500 bg-amber-50/70 border-amber-100' :
+                  'border-l-[#0A7D6F] bg-teal-50/70 border-teal-100'
                 }`}>
-                  <div className="p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <Badge variant="outline" className="bg-white uppercase text-xs font-bold">
+                  <div className="p-3.5 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <Badge variant="outline" className={`uppercase text-[10px] font-bold tracking-wider ${
+                        msg.triageResult.color_code === 'red' ? 'border-red-300 text-red-700 bg-white' :
+                        'border-[#0A7D6F]/30 text-[#0A7D6F] bg-white'
+                      }`}>
                         {msg.triageResult.category}
                       </Badge>
-                      {msg.triageResult.color_code === 'red' && <AlertCircle className="w-4 h-4 text-red-600" />}
-                      {msg.triageResult.color_code === 'green' && <CheckCircle2 className="w-4 h-4 text-green-600" />}
+                      {msg.triageResult.color_code === 'red' && <AlertCircle className="w-4 h-4 text-[#E04030]" />}
+                      {msg.triageResult.color_code !== 'red' && <CheckCircle2 className="w-4 h-4 text-[#0A7D6F]" />}
                     </div>
                     
-                    <p className="text-slate-600 text-xs italic mb-3">
+                    <p className="text-slate-700 text-xs font-medium">
                       {msg.triageResult.recommended_action}
                     </p>       
        
                     <Button 
                       size="sm" 
-                      className={`w-full text-xs h-8 ${
+                      className={`w-full text-xs h-9 font-bold rounded-xl shadow-sm ${
                         msg.triageResult.color_code === 'red' 
-                          ? 'bg-red-600 hover:bg-red-700' 
-                          : 'bg-teal-600 hover:bg-teal-700'
+                          ? 'bg-[#E04030] hover:bg-[#c93425] text-white' 
+                          : 'bg-[#0A7D6F] hover:bg-[#086b5e] text-white'
                       }`}
                       onClick={() => bookingMutation.mutate(msg.triageResult)}
                       disabled={bookingMutation.isPending}
                     >
-                      {bookingMutation.isPending ? "Booking..." : "Book Visit Now"}
+                      {bookingMutation.isPending ? "Booking Visit..." : "Book Visit Now"}
                     </Button>
                   </div>
                 </Card>
@@ -201,7 +231,7 @@ export default function TriageChat() {
 
             {msg.role === 'user' && (
               <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center ml-2 shrink-0">
-                <User className="w-4 h-4 text-slate-500" />
+                <User className="w-4 h-4 text-slate-600" />
               </div>
             )}
           </div>
@@ -209,13 +239,13 @@ export default function TriageChat() {
         
         {chatMutation.isPending && (
           <div className="flex justify-start items-center">
-             <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center mr-2">
-                <Bot className="w-4 h-4 text-teal-700" />
+             <div className="w-8 h-8 rounded-full bg-[#0A7D6F] p-0.5 flex items-center justify-center mr-2 shrink-0 shadow-sm border border-white">
+                <img src={SindiLogo} alt="Sindi" className="w-full h-full object-contain rounded-full" />
               </div>
-             <div className="bg-white border border-slate-200 rounded-2xl p-4 rounded-bl-none shadow-sm flex space-x-1">
-                <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+             <div className="bg-white border border-slate-200/80 rounded-[20px] px-4 py-3 rounded-bl-xs shadow-sm flex items-center space-x-1.5">
+                <div className="w-2 h-2 bg-[#0A7D6F] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-2 h-2 bg-[#0A7D6F] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-2 h-2 bg-[#0A7D6F] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
              </div>
           </div>
         )}
@@ -223,22 +253,22 @@ export default function TriageChat() {
       </div>
 
       {/* Input Area */}
-      <div className="p-4 bg-white border-t shrink-0 z-20 pb-24 md:pb-4">
-        <div className="flex gap-2 max-w-4xl mx-auto">
+      <div className="p-3.5 bg-white/95 backdrop-blur-md border-t border-slate-200/80 shrink-0 z-20 pb-20 md:pb-4">
+        <div className="flex gap-2 max-w-4xl mx-auto items-center">
           <Input 
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
             placeholder="Type your symptoms..."
-            className="flex-1 focus-visible:ring-teal-600"
+            className="flex-1 h-11 rounded-xl bg-slate-50 border-slate-200 focus-visible:ring-2 focus-visible:ring-[#0A7D6F] text-slate-800 placeholder:text-slate-400 text-sm"
             disabled={chatMutation.isPending}
           />
           <Button 
             onClick={handleSend} 
             disabled={chatMutation.isPending || !input.trim()}
-            className="bg-teal-600 hover:bg-teal-700 w-12 px-0"
+            className="bg-[#0A7D6F] hover:bg-[#086b5e] h-11 w-11 p-0 rounded-xl shadow-sm text-white shrink-0 flex items-center justify-center active:scale-95 transition-all"
           >
-            <Send className="w-5 h-5" />
+            <img src={SendIcon} alt="Send" className="w-5 h-5 object-contain filter brightness-0 invert" />
           </Button>
         </div>
       </div>

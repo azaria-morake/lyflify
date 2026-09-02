@@ -65,6 +65,8 @@ async def update_booking_status(request: StatusUpdateRequest):
     """
     
     # --- SAFETY CHECK: Prevent actions on Cancelled bookings ---
+    if not db:
+        return {"status": "no_action"}
     doc_ref = db.collection('queue').document(request.doc_id)
     doc = doc_ref.get()
     

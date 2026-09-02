@@ -4,13 +4,21 @@ import { useAuthStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'; // Import Sheet
+import { signOut } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import { SindiLogo } from '@/assets/sindiAssets';
 
 export default function ClinicLayout() {
   const logout = useAuthStore((state) => state.logout);
   const navigate = useNavigate();
   const location = useLocation();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.error("Logout error:", e);
+    }
     logout();
     navigate('/login');
   };
@@ -36,9 +44,14 @@ export default function ClinicLayout() {
       {/* --- DESKTOP SIDEBAR (Hidden on Tablet/Mobile) --- */}
       <aside className="w-64 bg-slate-900 text-slate-300 hidden lg:flex flex-col shrink-0 transition-all duration-300">
         <div className="p-6">
-          <div className="flex items-center space-x-2 text-white mb-8">
-            <Activity className="h-6 w-6 text-teal-400" />
-            <span className="font-bold text-xl tracking-tight">LyfLify</span>
+          <div className="flex items-center space-x-3 text-white mb-8">
+            <div className="w-9 h-9 rounded-full bg-[#0A7D6F] p-1 flex items-center justify-center border border-teal-400/40">
+              <img src={SindiLogo} alt="Sindi" className="w-full h-full object-contain rounded-full" />
+            </div>
+            <div>
+              <span className="font-extrabold text-xl tracking-tight block leading-none">Sindi</span>
+              <span className="text-[10px] text-teal-400 uppercase tracking-widest font-semibold">Clinic Portal</span>
+            </div>
           </div>
           <NavLinks />
         </div>
@@ -63,9 +76,11 @@ export default function ClinicLayout() {
                </SheetTrigger>
                <SheetContent side="left" className="w-64 bg-slate-900 border-r-slate-800 p-0 text-slate-300">
                   <div className="p-6 h-full flex flex-col">
-                    <div className="flex items-center space-x-2 text-white mb-8">
-                      <Activity className="h-6 w-6 text-teal-400" />
-                      <span className="font-bold text-xl tracking-tight">LyfLify</span>
+                    <div className="flex items-center space-x-3 text-white mb-8">
+                      <div className="w-8 h-8 rounded-full bg-[#0A7D6F] p-1 flex items-center justify-center border border-teal-400/40">
+                        <img src={SindiLogo} alt="Sindi" className="w-full h-full object-contain rounded-full" />
+                      </div>
+                      <span className="font-extrabold text-xl tracking-tight">Sindi</span>
                     </div>
                     <NavLinks />
                     <div className="mt-auto pt-6 border-t border-slate-800">
@@ -76,7 +91,12 @@ export default function ClinicLayout() {
                   </div>
                </SheetContent>
              </Sheet>
-             <span className="font-bold text-lg tracking-tight">LyfLify</span>
+             <div className="flex items-center gap-2">
+               <div className="w-7 h-7 rounded-full bg-[#0A7D6F] p-0.5 flex items-center justify-center">
+                 <img src={SindiLogo} alt="Sindi" className="w-full h-full object-contain rounded-full" />
+               </div>
+               <span className="font-bold text-lg tracking-tight">Sindi</span>
+             </div>
            </div>
         </header>
 

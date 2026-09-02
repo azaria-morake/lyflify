@@ -5,11 +5,14 @@ from dotenv import load_dotenv
 from app.services.firebase import get_system_prompt # Import new function
 
 load_dotenv(".env.groq")
+load_dotenv(".env")
+load_dotenv(".env.qroq")
 
 # Initialize the client
-client = Groq(
-    api_key=os.environ.get("GROQ_API_KEY"),
-)
+groq_api_key = os.environ.get("GROQ_API_KEY")
+client = Groq(api_key=groq_api_key) if groq_api_key else None
+
+MODEL_NAME = os.environ.get("LLM_MODEL", "openai/gpt-oss-20b")
 
 def get_llama_chat_response(patient_name: str, history: list, age: int = None, gender: str = None) -> dict:
     """
@@ -45,11 +48,13 @@ def get_llama_chat_response(patient_name: str, history: list, age: int = None, g
         messages.append({"role": msg.role, "content": msg.content})
 
     try:
+        if not client:
+            raise ValueError("GROQ_API_KEY is not configured")
         completion = client.chat.completions.create(
             messages=messages,
-            model="llama-3.1-8b-instant",
+            model=MODEL_NAME,
             temperature=0.1, 
-            max_tokens=256,
+            max_tokens=1024,
             response_format={"type": "json_object"}
         )
         return json.loads(completion.choices[0].message.content)
@@ -79,14 +84,16 @@ def explain_prescription(diagnosis: str, meds: list, notes: str) -> str:
     user_content = f"Diagnosis: {diagnosis}\nMedications: {', '.join(meds)}\nDoctor's Notes: {notes}\n\nPlease explain this to the patient."
 
     try:
+        if not client:
+            raise ValueError("GROQ_API_KEY is not configured")
         completion = client.chat.completions.create(
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content}
             ],
-            model="llama-3.1-8b-instant",
+            model=MODEL_NAME,
             temperature=0.2, 
-            max_tokens=256
+            max_tokens=1024
         )
         return completion.choices[0].message.content
     except Exception as e:
@@ -114,14 +121,16 @@ def analyze_operational_metrics(metrics: dict) -> list:
     user_content = f"Current Metrics: {json.dumps(metrics)}"
 
     try:
+        if not client:
+            raise ValueError("GROQ_API_KEY is not configured")
         completion = client.chat.completions.create(
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content}
             ],
-            model="llama-3.1-8b-instant",
+            model=MODEL_NAME,
             temperature=0.4,
-            max_tokens=256,
+            max_tokens=1024,
             response_format={"type": "json_object"}
         )
         return json.loads(completion.choices[0].message.content).get("insights", [])
@@ -150,14 +159,16 @@ def analyze_patient_health(records: list) -> dict:
         history_text += f"- {r.get('date')}: {r.get('diagnosis')} (Doc: {r.get('doctor')})\n"
 
     try:
+        if not client:
+            raise ValueError("GROQ_API_KEY is not configured")
         completion = client.chat.completions.create(
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Patient History:\n{history_text}"}
             ],
-            model="llama-3.1-8b-instant",
+            model=MODEL_NAME,
             temperature=0.3,
-            max_tokens=200,
+            max_tokens=1024,
             response_format={"type": "json_object"}
         )
         return json.loads(completion.choices[0].message.content)
