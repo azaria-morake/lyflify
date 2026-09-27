@@ -19,3 +19,5 @@ class TriageResponse(BaseModel):
     color_code: Optional[str] = None
     category: Optional[str] = None
     recommended_action: Optional[str] = None
+    agent_actions_taken: Optional[List[str]] = []
+    booking_confirmed: Optional[bool] = False

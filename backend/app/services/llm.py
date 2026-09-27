@@ -4,7 +4,10 @@ from groq import Groq
 from dotenv import load_dotenv
 from app.services.firebase import get_system_prompt # Import new function
 
+base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+load_dotenv(os.path.join(base_dir, ".env.groq"))
 load_dotenv(".env.groq")
+load_dotenv(os.path.join(base_dir, ".env"))
 load_dotenv(".env")
 load_dotenv(".env.qroq")
 
@@ -99,6 +102,44 @@ def explain_prescription(diagnosis: str, meds: list, notes: str) -> str:
     except Exception as e:
         print(f"LLM Error: {e}")
         return "Sorry, I cannot explain this right now. Please ask the nurse."
+
+
+def synthesize_doctor_findings(findings: str) -> dict:
+    """
+    Synthesizes raw doctor examination findings into a formal medical record:
+    Returns { "diagnosis": str, "meds": list[str], "notes": str }
+    """
+    system_prompt = (
+        "You are an expert Clinical AI Scribe assisting a doctor in a medical consultation. "
+        "The doctor will provide quick, raw clinical examination notes, bullet points, or findings. "
+        "Your job is to structure this into a professional medical record. "
+        "Return a JSON object with EXACTLY three fields:\n"
+        "- 'diagnosis': A precise, standard clinical diagnosis (e.g. 'Acute Bronchitis with Bronchospasm')\n"
+        "- 'meds': An array of prescribed medications with dosages and frequencies (e.g. ['Amoxicillin 500mg (TDS)', 'Paracetamol 500mg (PRN)'])\n"
+        "- 'notes': Clear, professional clinical notes summarizing examination observations, patient instructions, and follow-up guidance."
+    )
+    
+    try:
+        if not client:
+            raise ValueError("GROQ_API_KEY is not configured")
+        completion = client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Doctor's Examination Findings:\n{findings}"}
+            ],
+            model=MODEL_NAME,
+            temperature=0.1,
+            max_tokens=1024,
+            response_format={"type": "json_object"}
+        )
+        return json.loads(completion.choices[0].message.content)
+    except Exception as e:
+        print(f"LLM Synthesis Error: {e}")
+        return {
+            "diagnosis": "Clinical Examination",
+            "meds": ["Prescription provided by doctor"],
+            "notes": findings
+        }
     
 
 def analyze_operational_metrics(metrics: dict) -> list:

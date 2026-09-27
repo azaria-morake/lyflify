@@ -16,9 +16,21 @@ export interface Patient {
   urgent: boolean;
   symptoms: string;
   
-  // Timestamps
+  // Timestamps & AI Schedule
   time: string; // Display time e.g. "08:15"
   created_at: string; // ISO String
+  transcript?: string; // Full chat transcript for manual verification
+  schedule?: VisitSchedule;
+}
+
+export interface VisitSchedule {
+  arrival_time: string;
+  vitals_time: string;
+  doctor_time: string;
+  medication_pickup_time: string;
+  appointment_date: string;
+  interim_notes: string;
+  what_to_bring: string[];
 }
 
 export interface Metric {

@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 from app.services.firebase import get_patient_records, seed_records, add_patient_record, get_unique_patients
-from app.services.llm import explain_prescription, analyze_patient_health
+from app.services.llm import explain_prescription, analyze_patient_health, synthesize_doctor_findings
 
 router = APIRouter()
 
@@ -12,16 +12,22 @@ class ExplainRequest(BaseModel):
     meds: List[str]
     notes: str
 
+class AgentGenerateRecordRequest(BaseModel):
+    patient_id: str
+    patient_name: Optional[str] = "Patient"
+    findings: str
+
+@router.post("/agent-generate")
+async def agent_generate_record(request: AgentGenerateRecordRequest):
+    """AI Clinical Scribe synthesizes doctor findings into a structured medical record."""
+    result = synthesize_doctor_findings(request.findings)
+    return result
+
 @router.get("/list/{patient_id}")
 async def list_records(patient_id: str):
-    """Get all records. Auto-seeds if empty for the demo."""
+    """Get all records for the patient."""
     records = get_patient_records(patient_id)
-    
-    if not records:
-        seed_records(patient_id)
-        records = get_patient_records(patient_id)
-        
-    return records
+    return records or []
 
 @router.post("/explain")
 async def explain_record(request: ExplainRequest):
@@ -69,14 +75,13 @@ async def list_all_patients():
 @router.get("/ai-summary/{patient_id}")
 async def get_health_pulse(patient_id: str):
     """
-    Generates a Llama 3 Health Pulse for the patient home screen.
+    Generates a Llama Health Pulse for the patient home screen.
     """
     records = get_patient_records(patient_id)
-    
-    # If no records, seed them so the demo looks good
     if not records:
-        seed_records(patient_id)
-        records = get_patient_records(patient_id)
-        
+        return {
+            "summary": "Welcome to Sindi Care! You currently have no chronic diagnoses on file. Sindi is ready to assist whenever you need medical guidance.",
+            "vital_status": "Clear"
+        }
     analysis = analyze_patient_health(records)
     return analysis

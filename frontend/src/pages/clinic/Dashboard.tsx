@@ -2,7 +2,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useMemo, useEffect } from 'react';
 import { 
   Search, Bell, MoreHorizontal, CheckCircle2, AlertCircle, Stethoscope, 
-  BrainCircuit, Clock, Trash2, UserRound, Activity, Copy, ChevronRight
+  BrainCircuit, Clock, Trash2, UserRound, Activity, Copy, ChevronRight,
+  FileText, Sparkles, Loader2
 } from 'lucide-react';
 import { collection, onSnapshot, query } from "firebase/firestore";
 
@@ -34,12 +35,7 @@ const DOCTORS_ON_DUTY = [
   { id: "dr.naidoo@lyflify.com", name: "Dr. Naidoo", specialty: "Trauma Unit" },
 ];
 
-const NOTIFICATIONS = [
-  { id: 1, title: "System Delay Activated", desc: "15min buffer added.", time: "Just now", type: "alert" },
-  { id: 2, title: "High Urgency Triage", desc: "New patient flagged Critical.", time: "2m ago", type: "critical" },
-  { id: 3, title: "Vitals Received", desc: "Thabo Mbeki - BP: 140/90", time: "15m ago", type: "info" },
-  { id: 4, title: "Shift Handoff", desc: "Dr. Zulu checked in.", time: "1h ago", type: "info" }
-];
+// --- CLINICAL ROLES & SCHEDULE DEFAULTS ---
 
 // --- HELPERS ---
 const getScore = (patient: Patient): number => {
@@ -99,6 +95,13 @@ export default function ClinicDashboard() {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState(DOCTORS_ON_DUTY[0]);
   const [medsInput, setMedsInput] = useState("");
+  const [diagnosisInput, setDiagnosisInput] = useState("");
+  const [notesInput, setNotesInput] = useState("");
+  const [doctorFindings, setDoctorFindings] = useState("");
+
+  // Booking Review Modal (Admin)
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [selectedReviewPatient, setSelectedReviewPatient] = useState<Patient | null>(null);
 
   // --- REAL-TIME DATA ---
   useEffect(() => {
@@ -117,6 +120,51 @@ export default function ClinicDashboard() {
     });
     return () => unsubscribe();
   }, []);
+
+  // --- LIVE CLINIC NOTIFICATIONS ---
+  const [clinicNotifications, setClinicNotifications] = useState<any[]>([]);
+
+  useEffect(() => {
+    const q = query(collection(db, "clinic_notifications"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+      list.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+      setClinicNotifications(list);
+    }, (error) => {
+      console.error("Clinic notifications error:", error);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const unreadClinicNotifs = clinicNotifications.filter(n => !n.read).length;
+
+  const markClinicNotifsReadMutation = useMutation({
+    mutationFn: async (notifId?: string) => {
+      await api.post('/booking/clinic-notifications/read', { notification_id: notifId });
+    }
+  });
+
+  const handleOpenNotifRequest = (notif: any) => {
+    markClinicNotifsReadMutation.mutate(notif.id);
+    const target = patients.find(p => p.id === notif.doc_id || p.patient_id === notif.patient_id);
+    if (target) {
+      setSelectedReviewPatient(target);
+      setShowReviewModal(true);
+    } else {
+      setSelectedReviewPatient({
+        id: notif.doc_id || 'booking_request',
+        patient_id: notif.patient_id || 'demo_user',
+        name: notif.patient_name || 'Patient',
+        patient_name: notif.patient_name || 'Patient',
+        symptoms: notif.symptoms || 'High fever, chest cough, headache',
+        score: notif.score || 'High (8/10)',
+        transcript: notif.transcript || '',
+        status: 'Pending Approval',
+        time: '--:--'
+      } as any);
+      setShowReviewModal(true);
+    }
+  };
 
   // --- FILTERING ---
   const sortedPatients = useMemo(() => {
@@ -189,6 +237,45 @@ export default function ClinicDashboard() {
     }
   });
 
+  const generateRecordMutation = useMutation({
+    mutationFn: async (findings: string) => {
+      const res = await api.post('/records/agent-generate', {
+        patient_id: consultPatient?.patient_id || "demo_user",
+        patient_name: consultPatient?.name || consultPatient?.patient_name || "Patient",
+        findings: findings
+      });
+      return res.data;
+    },
+    onSuccess: (data) => {
+      if (data.diagnosis) setDiagnosisInput(data.diagnosis);
+      if (data.meds) setMedsInput(Array.isArray(data.meds) ? data.meds.join(', ') : data.meds);
+      if (data.notes) setNotesInput(data.notes);
+      toast.success("Medical Record Synthesized", {
+        description: "Agent created diagnosis and prescription from findings."
+      });
+    },
+    onError: () => toast.error("Synthesis failed", { description: "Please check backend connection." })
+  });
+
+  const approveBookingMutation = useMutation({
+    mutationFn: async (data: { doc_id: string; doctor_name: string; doctor_id: string }) => {
+      const res = await api.post('/booking/update', {
+        doc_id: data.doc_id,
+        action: "approve",
+        payload: { doctor_name: data.doctor_name, doctor_id: data.doctor_id }
+      });
+      return res.data;
+    },
+    onSuccess: () => {
+      setShowReviewModal(false);
+      queryClient.invalidateQueries({ queryKey: ['liveQueue'] });
+      toast.success("Booking Approved & Scheduled", {
+        description: "Agent confirmed booking, ordered queue, and updated patient visits menu."
+      });
+    },
+    onError: () => toast.error("Approval failed")
+  });
+
   const delayMutation = useMutation({
     mutationFn: async () => { await api.post('/navigator/delay'); },
     onSuccess: () => toast.warning("Simulated Delay", { description: "+15 minutes added to all patients." })
@@ -232,31 +319,73 @@ export default function ClinicDashboard() {
           <div className="md:hidden">
             <Sheet>
               <SheetTrigger asChild>
-                {/* FIX: Added 'relative' class to properly position the red dot */}
                 <Button variant="ghost" size="icon" className={`relative ${isDoctor ? "text-white hover:bg-indigo-700" : ""}`}>
                   <Bell className="w-5 h-5" />
-                  <span className="absolute top-2 right-2 h-2.5 w-2.5 bg-red-500 rounded-full animate-pulse ring-2 ring-white"></span>
+                  {unreadClinicNotifs > 0 && (
+                    <span className="absolute top-1.5 right-1.5 min-w-4 h-4 px-1 bg-red-500 text-white text-[10px] font-extrabold rounded-full flex items-center justify-center animate-pulse ring-2 ring-white">
+                      {unreadClinicNotifs}
+                    </span>
+                  )}
                 </Button>
               </SheetTrigger>
-              <SheetContent>
-                <SheetHeader className="mb-6">
-                  <SheetTitle>Clinic Activity Feed</SheetTitle>
-                  <SheetDescription>Real-time updates.</SheetDescription>
+              <SheetContent className="w-80 sm:w-96">
+                <SheetHeader className="mb-4 flex flex-row items-center justify-between">
+                  <div>
+                    <SheetTitle className="text-base font-bold text-slate-900">Clinic Activity Feed</SheetTitle>
+                    <SheetDescription className="text-xs text-slate-500">
+                      Live incoming triage booking requests
+                    </SheetDescription>
+                  </div>
+                  {unreadClinicNotifs > 0 && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-xs text-teal-600 font-semibold h-7 px-2 hover:bg-teal-50"
+                      onClick={() => markClinicNotifsReadMutation.mutate(undefined)}
+                    >
+                      Mark read
+                    </Button>
+                  )}
                 </SheetHeader>
-                <div className="space-y-6">
-                  {NOTIFICATIONS.map((notif) => (
-                    <div key={notif.id} className="flex gap-4 pb-4 border-b border-slate-100 last:border-0">
-                      <div className={`mt-1 h-2 w-2 rounded-full shrink-0 ${
-                        notif.type === 'critical' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 
-                        notif.type === 'alert' ? 'bg-amber-500' : 'bg-teal-500'
-                      }`} />
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium leading-none text-slate-800">{notif.title}</p>
-                        <p className="text-xs text-slate-500">{notif.desc}</p>
-                        <p className="text-[10px] text-slate-400 font-mono uppercase pt-1">{notif.time}</p>
-                      </div>
+                <div className="space-y-3 max-h-[calc(100vh-140px)] overflow-y-auto pr-1">
+                  {clinicNotifications.length === 0 ? (
+                    <div className="py-12 text-center text-slate-400">
+                      <Bell className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                      <p className="text-xs font-medium">No incoming notifications yet.</p>
+                      <p className="text-[11px] text-slate-400 mt-1 max-w-xs mx-auto">
+                        When a patient taps "Book Appointment" in triage chat, their live request will appear here.
+                      </p>
                     </div>
-                  ))}
+                  ) : (
+                    clinicNotifications.map((notif) => (
+                      <div 
+                        key={notif.id} 
+                        className={`p-3 rounded-xl border transition-all ${
+                          !notif.read ? 'bg-amber-50/50 border-amber-200/80 shadow-xs' : 'bg-slate-50/50 border-slate-100'
+                        }`}
+                      >
+                        <div className="flex items-start gap-2.5">
+                          <div className={`mt-1 h-2.5 w-2.5 rounded-full shrink-0 ${
+                            notif.type === 'critical' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 'bg-amber-500'
+                          }`} />
+                          <div className="space-y-1 flex-1">
+                            <p className="text-xs font-bold text-slate-900 leading-tight">{notif.title}</p>
+                            <p className="text-xs text-slate-600 leading-snug">{notif.desc}</p>
+                            <div className="flex items-center justify-between pt-1">
+                              <span className="text-[10px] text-slate-400 font-mono uppercase">{notif.time || 'Just now'}</span>
+                              <Button
+                                size="sm"
+                                className="h-6 px-2 text-[10px] font-bold bg-[#0A7D6F] hover:bg-[#086b5e] text-white rounded-md"
+                                onClick={() => handleOpenNotifRequest(notif)}
+                              >
+                                Review Request
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </SheetContent>
             </Sheet>
@@ -301,28 +430,71 @@ export default function ClinicDashboard() {
               <SheetTrigger asChild>
                 <Button variant={isDoctor ? "secondary" : "outline"} size="icon" className="relative">
                   <Bell className={`h-4 w-4 ${isDoctor ? "text-indigo-700" : ""}`} />
-                  <span className="absolute top-2 right-2 h-2.5 w-2.5 bg-red-500 rounded-full animate-pulse ring-2 ring-white"></span>
+                  {unreadClinicNotifs > 0 && (
+                    <span className="absolute top-1.5 right-1.5 min-w-4 h-4 px-1 bg-red-500 text-white text-[10px] font-extrabold rounded-full flex items-center justify-center animate-pulse ring-2 ring-white">
+                      {unreadClinicNotifs}
+                    </span>
+                  )}
                 </Button>
               </SheetTrigger>
-              <SheetContent>
-                <SheetHeader className="mb-6">
-                  <SheetTitle>Clinic Activity Feed</SheetTitle>
-                  <SheetDescription>Real-time updates from Triage AI.</SheetDescription>
+              <SheetContent className="w-80 sm:w-96">
+                <SheetHeader className="mb-4 flex flex-row items-center justify-between">
+                  <div>
+                    <SheetTitle className="text-base font-bold text-slate-900">Clinic Activity Feed</SheetTitle>
+                    <SheetDescription className="text-xs text-slate-500">
+                      Live incoming triage booking requests
+                    </SheetDescription>
+                  </div>
+                  {unreadClinicNotifs > 0 && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-xs text-teal-600 font-semibold h-7 px-2 hover:bg-teal-50"
+                      onClick={() => markClinicNotifsReadMutation.mutate(undefined)}
+                    >
+                      Mark read
+                    </Button>
+                  )}
                 </SheetHeader>
-                <div className="space-y-6">
-                  {NOTIFICATIONS.map((notif) => (
-                    <div key={notif.id} className="flex gap-4 pb-4 border-b border-slate-100 last:border-0">
-                      <div className={`mt-1 h-2 w-2 rounded-full shrink-0 ${
-                        notif.type === 'critical' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 
-                        notif.type === 'alert' ? 'bg-amber-500' : 'bg-teal-500'
-                      }`} />
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium leading-none text-slate-800">{notif.title}</p>
-                        <p className="text-xs text-slate-500">{notif.desc}</p>
-                        <p className="text-[10px] text-slate-400 font-mono uppercase pt-1">{notif.time}</p>
-                      </div>
+                <div className="space-y-3 max-h-[calc(100vh-140px)] overflow-y-auto pr-1">
+                  {clinicNotifications.length === 0 ? (
+                    <div className="py-12 text-center text-slate-400">
+                      <Bell className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                      <p className="text-xs font-medium">No incoming notifications yet.</p>
+                      <p className="text-[11px] text-slate-400 mt-1 max-w-xs mx-auto">
+                        When a patient taps "Book Appointment" in triage chat, their live request will appear here.
+                      </p>
                     </div>
-                  ))}
+                  ) : (
+                    clinicNotifications.map((notif) => (
+                      <div 
+                        key={notif.id} 
+                        className={`p-3 rounded-xl border transition-all ${
+                          !notif.read ? 'bg-amber-50/50 border-amber-200/80 shadow-xs' : 'bg-slate-50/50 border-slate-100'
+                        }`}
+                      >
+                        <div className="flex items-start gap-2.5">
+                          <div className={`mt-1 h-2.5 w-2.5 rounded-full shrink-0 ${
+                            notif.type === 'critical' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 'bg-amber-500'
+                          }`} />
+                          <div className="space-y-1 flex-1">
+                            <p className="text-xs font-bold text-slate-900 leading-tight">{notif.title}</p>
+                            <p className="text-xs text-slate-600 leading-snug">{notif.desc}</p>
+                            <div className="flex items-center justify-between pt-1">
+                              <span className="text-[10px] text-slate-400 font-mono uppercase">{notif.time || 'Just now'}</span>
+                              <Button
+                                size="sm"
+                                className="h-6 px-2 text-[10px] font-bold bg-[#0A7D6F] hover:bg-[#086b5e] text-white rounded-md"
+                                onClick={() => handleOpenNotifRequest(notif)}
+                              >
+                                Review Request
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </SheetContent>
             </Sheet>
@@ -331,8 +503,40 @@ export default function ClinicDashboard() {
       </header>
 
       {/* CONTENT AREA */}
-      <div className="p-4 md:p-6 overflow-auto flex-1">
+      <div className="p-4 md:p-6 overflow-auto flex-1 space-y-5">
         
+        {/* --- ADMIN PENDING REQUESTS ALERT BANNER --- */}
+        {!isDoctor && patients.filter(p => p.status === 'Pending Approval').length > 0 && (
+          <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white p-4 rounded-2xl shadow-md flex flex-col md:flex-row items-center justify-between gap-3 animate-in slide-in-from-top-2">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                <Bell className="w-5 h-5 text-white animate-bounce" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm md:text-base">
+                  {patients.filter(p => p.status === 'Pending Approval').length} New Booking Request Awaiting Review
+                </h3>
+                <p className="text-xs text-white/90">
+                  Review patient symptoms, AI triage severity, and chat transcript to confirm clinic schedule.
+                </p>
+              </div>
+            </div>
+            <Button 
+              size="sm"
+              className="bg-white text-amber-800 hover:bg-amber-50 font-bold text-xs rounded-xl shadow shrink-0"
+              onClick={() => {
+                const pending = patients.filter(p => p.status === 'Pending Approval');
+                if (pending.length > 0) {
+                  setSelectedReviewPatient(pending[0]);
+                  setShowReviewModal(true);
+                }
+              }}
+            >
+              Review Request & Transcript
+            </Button>
+          </div>
+        )}
+
         {/* --- MOBILE VIEW (Redesigned Cards) --- */}
         <div className="md:hidden space-y-3">
           {isLoading ? (
@@ -411,6 +615,18 @@ export default function ClinicDashboard() {
                             }}
                           >
                             <Stethoscope className="w-4 h-4 mr-2" /> Consult Patient
+                          </Button>
+                        ) : patient.status === 'Pending Approval' ? (
+                          <Button 
+                            size="sm" 
+                            className="w-full h-10 font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedReviewPatient(patient);
+                              setShowReviewModal(true);
+                            }}
+                          >
+                            <FileText className="w-4 h-4 mr-2" /> Review Request & Transcript
                           </Button>
                         ) : (
                           <Button 
@@ -544,6 +760,18 @@ export default function ClinicDashboard() {
                              >
                                Consult
                              </Button>
+                          ) : patient.status === 'Pending Approval' ? (
+                             <Button 
+                               size="sm"
+                               className="bg-amber-500 hover:bg-amber-600 text-white font-bold h-8 shadow-sm"
+                               onClick={(e) => {
+                                 e.stopPropagation();
+                                 setSelectedReviewPatient(patient);
+                                 setShowReviewModal(true);
+                               }}
+                             >
+                               Review Request
+                             </Button>
                           ) : (
                              <Button 
                                size="sm"
@@ -673,7 +901,7 @@ export default function ClinicDashboard() {
 </div>
 
           <form 
-            className="space-y-5 py-4"
+            className="space-y-4 py-3"
             onSubmit={(e) => {
               e.preventDefault();
               const formData = new FormData(e.currentTarget);
@@ -682,41 +910,92 @@ export default function ClinicDashboard() {
                   patient_id: consultPatient?.patient_id,
                   patient_name: consultPatient?.name || consultPatient?.patient_name || "Unknown",
                   doc_id: consultPatient?.id,
-                  diagnosis: formData.get('diagnosis'),
+                  diagnosis: diagnosisInput || formData.get('diagnosis'),
                   meds: medsInput,
-                  notes: formData.get('notes'),
+                  notes: notesInput || formData.get('notes'),
                 });
               }
             }}
           >
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Diagnosis</label>
-              <Input name="diagnosis" placeholder="e.g. Acute Bronchitis" required />
+            {/* AI CLINICAL SCRIBE PROMPT */}
+            <div className="bg-indigo-50/70 border border-indigo-200/80 rounded-xl p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-indigo-900 font-bold text-xs uppercase tracking-wide">
+                  <Sparkles className="w-4 h-4 text-indigo-600" />
+                  AI Clinical Scribe
+                </div>
+                <span className="text-[11px] text-indigo-600 font-medium">Write raw findings & let agent draft record</span>
+              </div>
+              <Textarea 
+                value={doctorFindings}
+                onChange={(e) => setDoctorFindings(e.target.value)}
+                placeholder="Write raw examination findings (e.g. Acute bronchitis, bilateral wheezing in lower lobes. Prescribe Amoxicillin 500mg TDS, Panado for fever, Salbutamol inhaler. Advise rest and warm fluids.)"
+                className="h-16 bg-white border-indigo-200 text-xs"
+              />
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  size="sm"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm"
+                  onClick={() => generateRecordMutation.mutate(doctorFindings)}
+                  disabled={generateRecordMutation.isPending || !doctorFindings.trim()}
+                >
+                  {generateRecordMutation.isPending ? (
+                    <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Agent Synthesizing Record...</>
+                  ) : (
+                    <><BrainCircuit className="w-3.5 h-3.5 mr-1.5" /> Agent: Generate Medical Record</>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700">Diagnosis</label>
+              <Input 
+                name="diagnosis" 
+                value={diagnosisInput} 
+                onChange={(e) => setDiagnosisInput(e.target.value)} 
+                placeholder="e.g. Acute Bronchitis" 
+                required 
+              />
             </div>
             
-            <div className="space-y-2">
-              <label className="text-sm font-medium flex justify-between">
-                Prescription <span className="text-xs text-slate-400 font-normal">Comma separated</span>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 flex justify-between">
+                Prescription <span className="text-[11px] text-slate-400 font-normal">Comma separated</span>
               </label>
-              <Input name="meds" value={medsInput} onChange={(e) => setMedsInput(e.target.value)} placeholder="e.g. Amoxicillin 500mg" required />
+              <Input 
+                name="meds" 
+                value={medsInput} 
+                onChange={(e) => setMedsInput(e.target.value)} 
+                placeholder="e.g. Amoxicillin 500mg, Panado" 
+                required 
+              />
               <div className="flex gap-2 pt-1 flex-wrap">
-                {["Panado (PRN)", "Amoxicillin 500mg", "Vit B Co"].map((script) => (
-                  <button key={script} type="button" onClick={() => addQuickScript(script)} className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded border">
+                {["Panado (PRN)", "Amoxicillin 500mg", "Salbutamol Inhaler"].map((script) => (
+                  <button key={script} type="button" onClick={() => addQuickScript(script)} className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-0.5 rounded border">
                     + {script}
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Clinical Notes</label>
-              <Textarea name="notes" placeholder="Observations..." required className="h-24" />
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700">Clinical Notes</label>
+              <Textarea 
+                name="notes" 
+                value={notesInput} 
+                onChange={(e) => setNotesInput(e.target.value)} 
+                placeholder="Observations & aftercare..." 
+                required 
+                className="h-20 text-xs" 
+              />
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="pt-2">
               <Button type="button" variant="outline" onClick={() => setShowConsultModal(false)}>Cancel</Button>
-              <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white" disabled={createRecordMutation.isPending}>
-                {createRecordMutation.isPending ? "Discharging..." : "Complete & Discharge"}
+              <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold" disabled={createRecordMutation.isPending}>
+                {createRecordMutation.isPending ? "Discharging..." : "Confirm & Discharge Patient"}
               </Button>
             </DialogFooter>
           </form>
@@ -885,6 +1164,83 @@ export default function ClinicDashboard() {
                  </Button>
                )}
              </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* --- MODAL 4: ADMIN REVIEW BOOKING REQUEST & TRANSCRIPT --- */}
+      <Dialog open={showReviewModal} onOpenChange={setShowReviewModal}>
+        <DialogContent className="sm:max-w-[620px] max-h-[88vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-teal-600" />
+              Review Booking Request: {selectedReviewPatient?.name || selectedReviewPatient?.patient_name}
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* Severity & Symptoms Strip */}
+          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-500">AI Triage Severity</span>
+              <Badge className={selectedReviewPatient?.urgent ? "bg-red-600 text-white font-bold" : "bg-amber-500 text-white font-bold"}>
+                {selectedReviewPatient?.score || "High Priority"}
+              </Badge>
+            </div>
+            <div>
+              <span className="text-xs font-semibold text-slate-500">Reported Symptoms:</span>
+              <p className="text-sm font-medium text-slate-800 mt-0.5 italic">
+                "{selectedReviewPatient?.symptoms || "Symptoms reported via triage chat."}"
+              </p>
+            </div>
+          </div>
+
+          {/* Chat Transcript */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+              <FileText className="w-3.5 h-3.5 text-teal-600" />
+              Triage Chat Transcript (Manual Severity Verification)
+            </label>
+            <div className="bg-slate-900 text-slate-100 p-4 rounded-xl text-xs font-mono max-h-56 overflow-y-auto whitespace-pre-wrap leading-relaxed border border-slate-800 shadow-inner">
+              {selectedReviewPatient?.transcript || "Transcript generated during automated triage session.\n\nPatient reported persistent symptoms requiring clinical assessment."}
+            </div>
+          </div>
+
+          {/* Doctor Assignment Selector */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+              Assign Attending Doctor
+            </label>
+            <select 
+              value={selectedDoctor.id} 
+              onChange={(e) => {
+                const doc = DOCTORS_ON_DUTY.find(d => d.id === e.target.value);
+                if (doc) setSelectedDoctor(doc);
+              }}
+              className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm bg-white font-medium focus:ring-2 focus:ring-teal-500 outline-none"
+            >
+              {DOCTORS_ON_DUTY.map(d => (
+                <option key={d.id} value={d.id}>{d.name} ({d.specialty})</option>
+              ))}
+            </select>
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button variant="outline" onClick={() => setShowReviewModal(false)}>Cancel</Button>
+            <Button 
+              className="bg-[#0A7D6F] hover:bg-[#086b5e] text-white font-bold"
+              onClick={() => {
+                if (selectedReviewPatient) {
+                  approveBookingMutation.mutate({
+                    doc_id: selectedReviewPatient.id,
+                    doctor_name: selectedDoctor.name,
+                    doctor_id: selectedDoctor.id
+                  });
+                }
+              }}
+              disabled={approveBookingMutation.isPending}
+            >
+              {approveBookingMutation.isPending ? "Confirming..." : "Accept & Order Queue Schedule"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

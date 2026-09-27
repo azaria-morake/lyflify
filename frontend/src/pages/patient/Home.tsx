@@ -25,6 +25,7 @@ import {
   HealthTipsIcon, 
   QueueIcon 
 } from '@/assets/sindiAssets';
+import NotificationBell from '@/components/NotificationBell';
 
 // --- FETCHERS ---
 const fetchCarePath = async () => {
@@ -87,19 +88,22 @@ export default function PatientHome() {
     <div className="p-4 sm:p-6 space-y-6 bg-[#FAF7F2] min-h-screen pb-28 md:pb-8">
       
       {/* 1. TOP HEADER: SINDI CHAT (Exact match with SINDI_CHAT_V2_dashboard.png) */}
-      <div className="flex items-center gap-4 pt-2">
-        <div className="w-16 h-16 rounded-full bg-[#0A7D6F] p-1 flex items-center justify-center shrink-0 shadow-md border-2 border-white">
-          <img 
-            src={SindiLogo} 
-            alt="Sindi" 
-            className="w-full h-full object-contain rounded-full"
-          />
+      <div className="flex items-center justify-between pt-2">
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 rounded-full bg-[#0A7D6F] p-1 flex items-center justify-center shrink-0 shadow-md border-2 border-white">
+            <img 
+              src={SindiLogo} 
+              alt="Sindi" 
+              className="w-full h-full object-contain rounded-full"
+            />
+          </div>
+          <div>
+            <h1 className="text-3xl font-black text-[#053B36] tracking-tight uppercase leading-none">
+              SINDI CHAT
+            </h1>
+          </div>
         </div>
-        <div>
-          <h1 className="text-3xl font-black text-[#053B36] tracking-tight uppercase leading-none">
-            SINDI CHAT
-          </h1>
-        </div>
+        <NotificationBell className="w-11 h-11 bg-white shadow-sm border border-slate-200" />
       </div>
 
       {/* 2. GREETING */}

@@ -1,22 +1,19 @@
 from fastapi import APIRouter
 from app.models.triage import TriageRequest, TriageResponse
-from app.services.llm import get_llama_chat_response 
+from app.services.clinical_agent import run_clinical_triage_agent
 
 router = APIRouter()
 
 @router.post("/assess", response_model=TriageResponse)
 async def assess_patient(request: TriageRequest):
-    # Log the interaction for debugging
-    print(f"Chat from {request.patient_name}: {len(request.history)} messages")
+    print(f"Autonomous Clinical Agent triage for {request.patient_name} ({request.patient_id}): {len(request.history)} messages")
     
-    # Call the new Conversational Service (Nurse Nandiphiwe)
-    # We pass the age and gender so the AI can be context-aware
-    ai_data = get_llama_chat_response(
+    ai_data = await run_clinical_triage_agent(
+        patient_id=request.patient_id,
         patient_name=request.patient_name, 
         history=request.history,
         age=request.age,
         gender=request.gender
     )
     
-    # Convert the dict back into the Pydantic model
     return TriageResponse(**ai_data)

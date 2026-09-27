@@ -3,5 +3,7 @@ __pycache__/
 serviceAccountKey.json
 .env*
 *.env*
+.env.groq
+.env.qroq
 .vercel
 

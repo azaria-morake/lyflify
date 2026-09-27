@@ -6,6 +6,8 @@ from functools import lru_cache
 
 # --- 1. EXISTING AUTH SETUP ---
 firebase_creds = os.getenv("FIREBASE_CREDENTIALS")
+base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+local_key_path = os.path.join(base_dir, "serviceAccountKey.json")
 
 if not firebase_admin._apps:
     if firebase_creds:
@@ -20,6 +22,10 @@ if not firebase_admin._apps:
         cred = credentials.Certificate("serviceAccountKey.json")
         firebase_admin.initialize_app(cred)
         print("SUCCESS: Firebase initialized from local file")
+    elif os.path.exists(local_key_path):
+        cred = credentials.Certificate(local_key_path)
+        firebase_admin.initialize_app(cred)
+        print(f"SUCCESS: Firebase initialized from {local_key_path}")
     else:
         print("CRITICAL WARNING: No Firebase Credentials found.")
 

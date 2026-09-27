@@ -12,6 +12,9 @@ const api = axios.create({
 
 // --- ADD THIS INTERCEPTOR ---
 api.interceptors.request.use(async (config) => {
+  if (typeof auth.authStateReady === 'function') {
+    await auth.authStateReady();
+  }
   const user = auth.currentUser;
   
   if (user) {

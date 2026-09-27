@@ -10,10 +10,12 @@ import {
   HomeIcon, 
   ChatIcon, 
   ClinicIcon, 
+  RecordsIcon,
   ProfileIcon 
 } from '@/assets/sindiAssets';
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import NotificationBell from '@/components/NotificationBell';
 
 export default function PatientLayout() {
   const location = useLocation();
@@ -54,12 +56,15 @@ export default function PatientLayout() {
           <nav className="flex items-center gap-1.5 bg-slate-100/90 p-1 rounded-full border border-slate-200/60">
             <DesktopNavItem to="/" label="Home" active={isActive('/')} />
             <DesktopNavItem to="/triage" label="Sindi Chat" active={isActive('/triage')} />
+            <DesktopNavItem to="/visits" label="Visits" active={isActive('/visits')} />
+            <DesktopNavItem to="/notifications" label="Notifications" active={isActive('/notifications')} />
             <DesktopNavItem to="/records" label="My Records" active={isActive('/records')} />
           </nav>
 
           <div className="h-6 w-px bg-slate-200 mx-1" /> 
 
           <div className="flex items-center gap-2">
+            <NotificationBell />
             <span className="text-xs font-semibold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-full">
               {user?.name || 'Patient'}
             </span>
@@ -100,10 +105,16 @@ export default function PatientLayout() {
           iconSrc={ChatIcon}
         />
         <MobileNavItem 
-          to="/records" 
-          label="Clinic" 
-          active={isActive('/records')} 
+          to="/visits" 
+          label="Visits" 
+          active={isActive('/visits')} 
           iconSrc={ClinicIcon}
+        />
+        <MobileNavItem 
+          to="/records" 
+          label="Records" 
+          active={isActive('/records')} 
+          iconSrc={RecordsIcon}
         />
         <button 
           onClick={() => setProfileOpen(true)}

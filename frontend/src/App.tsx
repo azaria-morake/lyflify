@@ -6,7 +6,10 @@ import PatientLayout from '@/layouts/PatientLayout';
 import ClinicLayout from '@/layouts/ClinicLayout';
 import Login from '@/pages/Login';
 import PatientHome from '@/pages/patient/Home';
+import Visits from '@/pages/patient/Visits';
+import PatientNotifications from '@/pages/patient/Notifications';
 import ClinicDashboard from '@/pages/clinic/Dashboard';
+import BookingRequests from '@/pages/clinic/BookingRequests';
 import PatientRecords from '@/pages/patient/Records';
 import ClinicAnalytics from '@/pages/clinic/Analytics';
 import ClinicPatients from '@/pages/clinic/Patients';
@@ -38,6 +41,8 @@ function App() {
           <>
             <Route index element={<PatientHome />} />
             <Route path="triage" element={<TriageChat />} />
+            <Route path="visits" element={<Visits />} />
+            <Route path="notifications" element={<PatientNotifications />} />
             <Route path="records" element={<PatientRecords />} />
           </>
           )}
@@ -45,6 +50,7 @@ function App() {
           {isStaff && (
              <>
                <Route index element={<ClinicDashboard />} />
+               <Route path="booking-requests" element={<BookingRequests />} />
                <Route path="analytics" element={<ClinicAnalytics />} />
                <Route path="patients" element={<ClinicPatients />} />
              </>

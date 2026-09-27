@@ -1,9 +1,12 @@
+import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Activity, LogOut, Menu } from 'lucide-react';
+import { LayoutDashboard, Users, Activity, LogOut, Menu, Inbox } from 'lucide-react';
+import { collection, query, onSnapshot } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { useAuthStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'; // Import Sheet
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { SindiLogo } from '@/assets/sindiAssets';
@@ -12,6 +15,19 @@ export default function ClinicLayout() {
   const logout = useAuthStore((state) => state.logout);
   const navigate = useNavigate();
   const location = useLocation();
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    const q = query(collection(db, "queue"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const count = snapshot.docs.filter(doc => doc.data().status === 'Pending Approval').length;
+      setPendingCount(count);
+    }, (error) => {
+      console.error("ClinicLayout queue listener error:", error);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -25,15 +41,35 @@ export default function ClinicLayout() {
 
   // Shared Nav Links Component
   const NavLinks = () => (
-    <nav className="space-y-1">
+    <nav className="space-y-1.5">
       <Link to="/">
-        <SidebarItem icon={<LayoutDashboard size={20} />} label="Live Queue" active={location.pathname === "/"} />
+        <SidebarItem 
+          icon={<LayoutDashboard size={20} />} 
+          label="Live Queue" 
+          active={location.pathname === "/"} 
+        />
+      </Link>
+      <Link to="/booking-requests">
+        <SidebarItem 
+          icon={<Inbox size={20} />} 
+          label="Booking Requests" 
+          active={location.pathname === "/booking-requests"} 
+          badge={pendingCount}
+        />
       </Link>
       <Link to="/patients">
-        <SidebarItem icon={<Users size={20} />} label="Patients" active={location.pathname === "/patients"} />
+        <SidebarItem 
+          icon={<Users size={20} />} 
+          label="Patients" 
+          active={location.pathname === "/patients"} 
+        />
       </Link>
       <Link to="/analytics">
-        <SidebarItem icon={<Activity size={20} />} label="Analytics" active={location.pathname === "/analytics"} />
+        <SidebarItem 
+          icon={<Activity size={20} />} 
+          label="Analytics" 
+          active={location.pathname === "/analytics"} 
+        />
       </Link>
     </nav>
   );
@@ -98,6 +134,18 @@ export default function ClinicLayout() {
                <span className="font-bold text-lg tracking-tight">Sindi</span>
              </div>
            </div>
+
+           <div className="flex items-center gap-2">
+             {pendingCount > 0 && (
+               <Link 
+                 to="/booking-requests"
+                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-bold"
+               >
+                 <Inbox className="w-3.5 h-3.5" />
+                 <span>{pendingCount}</span>
+               </Link>
+             )}
+           </div>
         </header>
 
         {/* PAGE CONTENT */}
@@ -109,12 +157,31 @@ export default function ClinicLayout() {
   );
 }
 
-const SidebarItem = ({ icon, label, active }: { icon: any; label: string; active?: boolean }) => (
+const SidebarItem = ({ 
+  icon, 
+  label, 
+  active, 
+  badge 
+}: { 
+  icon: any; 
+  label: string; 
+  active?: boolean; 
+  badge?: number;
+}) => (
   <div className={cn(
-    "flex items-center gap-3 p-3 rounded-md cursor-pointer text-sm font-medium transition-colors",
-    active ? "bg-slate-800 text-white" : "hover:bg-slate-800 hover:text-white"
+    "flex items-center justify-between p-3 rounded-xl cursor-pointer text-sm font-medium transition-all",
+    active 
+      ? "bg-[#0A7D6F] text-white shadow-sm font-semibold" 
+      : "text-slate-400 hover:bg-slate-800 hover:text-white"
   )}>
-    {icon}
-    <span>{label}</span>
+    <div className="flex items-center gap-3">
+      {icon}
+      <span>{label}</span>
+    </div>
+    {badge !== undefined && badge > 0 && (
+      <span className="bg-amber-500 text-slate-900 font-extrabold text-[11px] px-2 py-0.5 rounded-full animate-pulse shadow-sm">
+        {badge}
+      </span>
+    )}
   </div>
 );

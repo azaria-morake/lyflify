@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
-import { AlertCircle, CheckCircle2, User, RefreshCcw, ArrowLeft, ShieldCheck } from 'lucide-react';
+import { AlertCircle, CheckCircle2, User, RefreshCcw, ArrowLeft, ShieldCheck, Sparkles, Stethoscope, Clock, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -9,6 +9,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
 import { SindiLogo, SendIcon } from '@/assets/sindiAssets';
+import NotificationBell from '@/components/NotificationBell';
 
 type TriageData = {
   urgency_score: number;
@@ -22,6 +23,8 @@ type Message = {
   role: 'user' | 'assistant';
   content: string;
   triageResult?: TriageData; 
+  agentActions?: string[];
+  bookingConfirmed?: boolean;
 };
 
 export default function TriageChat() {
@@ -32,7 +35,15 @@ export default function TriageChat() {
     const saved = localStorage.getItem('sindi_chat_history');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((m: Message) => {
+            if (m.content && m.content.includes("I've cleared our chat")) {
+              return { ...m, content: "Molo! How can I help you today?" };
+            }
+            return m;
+          });
+        }
       } catch (e) {
         console.error("Failed to parse chat history", e);
       }
@@ -40,11 +51,12 @@ export default function TriageChat() {
     return [{ 
       id: 1, 
       role: 'assistant', 
-      content: `Sawubona ${user?.name ? user.name.split(' ')[0] : "there"}! I'm Sindi, your AI health assistant. How are you feeling today?` 
+      content: `Molo! How can I help you today?` 
     }];
   });
   
   const [input, setInput] = useState('');
+  const [bookingSent, setBookingSent] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -58,9 +70,10 @@ export default function TriageChat() {
     const resetMsg: Message[] = [{ 
       id: Date.now(), 
       role: 'assistant', 
-      content: `Molo! I've cleared our chat. How can I help you today?` 
+      content: `Molo! How can I help you today?` 
     }];
     setMessages(resetMsg);
+    setBookingSent(false);
     localStorage.removeItem('sindi_chat_history');
   };
 
@@ -79,6 +92,8 @@ export default function TriageChat() {
         id: Date.now(),
         role: 'assistant',
         content: data.reply_message,
+        agentActions: data.agent_actions_taken,
+        bookingConfirmed: data.booking_confirmed,
         triageResult: data.show_booking ? {
           urgency_score: data.urgency_score,
           color_code: data.color_code,
@@ -99,15 +114,26 @@ export default function TriageChat() {
 
   const bookingMutation = useMutation({
     mutationFn: async (triageData: any) => {
+      const transcriptText = messages
+        .map(m => `${m.role === 'user' ? (user?.name || 'Patient') : 'Nurse Sindi'}: ${m.content}`)
+        .join("\n\n");
+      const latestUserMsg = [...messages].reverse().find(m => m.role === 'user')?.content || "High fever, chest cough, headache";
       await api.post('/booking/create', {
         patient_id: "demo_user",
-        patient_name: user?.name || "Patient",
-        triage_score: triageData.color_code, 
-        symptoms: messages[messages.length - 2]?.content || "Chat Consultation"
+        patient_name: user?.name || "Thandi Khumalo",
+        triage_score: triageData?.color_code || "orange", 
+        symptoms: latestUserMsg,
+        transcript: transcriptText
       });
     },
     onSuccess: () => {
-      navigate('/');
+      setBookingSent(true);
+      const confirmMsg: Message = {
+        id: Date.now(),
+        role: 'assistant',
+        content: `Sawubona ${user?.name ? user.name.split(' ')[0] : 'there'}! I have submitted your booking request and triage transcript to the clinic team. I'll alert you under Notifications the moment your booking is confirmed, so you can go on with your day!`
+      };
+      setMessages(prev => [...prev, confirmMsg]);
     }
   });
 
@@ -154,6 +180,7 @@ export default function TriageChat() {
         </div>
         
         <div className="flex items-center gap-1">
+          <NotificationBell />
           <Button 
             variant="ghost" 
             size="sm" 
@@ -188,6 +215,32 @@ export default function TriageChat() {
                 ? 'bg-[#0A7D6F] text-white rounded-br-xs' 
                 : 'bg-white border border-slate-200/80 text-slate-800 rounded-bl-xs'
             }`}>
+              {/* Autonomous Agent Tool Execution Badges */}
+              {msg.agentActions && msg.agentActions.filter(a => a !== 'submit_triage_response').length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2.5 pb-2 border-b border-slate-100">
+                  {msg.agentActions.includes('lookup_patient_medical_history') && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <FileText className="w-3 h-3" /> Reviewed Medical History
+                    </span>
+                  )}
+                  {msg.agentActions.includes('check_clinic_queue_status') && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                      <Clock className="w-3 h-3" /> Checked Live Queue
+                    </span>
+                  )}
+                  {msg.agentActions.includes('register_patient_in_queue') && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                      <Sparkles className="w-3 h-3" /> Registered in Live Queue
+                    </span>
+                  )}
+                  {msg.agentActions.includes('save_doctor_clinical_briefing') && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                      <Stethoscope className="w-3 h-3" /> Prepared Doctor SOAP Briefing
+                    </span>
+                  )}
+                </div>
+              )}
+
               <p className="whitespace-pre-wrap">{msg.content}</p>
 
               {msg.triageResult && (
@@ -212,18 +265,25 @@ export default function TriageChat() {
                       {msg.triageResult.recommended_action}
                     </p>       
        
-                    <Button 
-                      size="sm" 
-                      className={`w-full text-xs h-9 font-bold rounded-xl shadow-sm ${
-                        msg.triageResult.color_code === 'red' 
-                          ? 'bg-[#E04030] hover:bg-[#c93425] text-white' 
-                          : 'bg-[#0A7D6F] hover:bg-[#086b5e] text-white'
-                      }`}
-                      onClick={() => bookingMutation.mutate(msg.triageResult)}
-                      disabled={bookingMutation.isPending}
-                    >
-                      {bookingMutation.isPending ? "Booking Visit..." : "Book Visit Now"}
-                    </Button>
+                    {bookingSent ? (
+                      <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold">
+                        <Clock className="w-4 h-4 text-amber-600 shrink-0 animate-spin" />
+                        <span>Booking Request Sent • Awaiting Staff Confirmation</span>
+                      </div>
+                    ) : (
+                      <Button 
+                        size="sm" 
+                        className={`w-full text-xs h-9 font-bold rounded-xl shadow-sm ${
+                          msg.triageResult.color_code === 'red' 
+                            ? 'bg-[#E04030] hover:bg-[#c93425] text-white' 
+                            : 'bg-[#0A7D6F] hover:bg-[#086b5e] text-white'
+                        }`}
+                        onClick={() => bookingMutation.mutate(msg.triageResult)}
+                        disabled={bookingMutation.isPending}
+                      >
+                        {bookingMutation.isPending ? "Sending Request..." : "Book Appointment"}
+                      </Button>
+                    )}
                   </div>
                 </Card>
               )}

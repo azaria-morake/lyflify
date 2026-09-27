@@ -73,9 +73,9 @@ async def get_patient_journey(patient_id: str):
         elif entry.get("urgent") or "Critical" in score or status == "Emergency En Route":
             color = "red"
             advice = "Emergency Team Notified. Proceed immediately."
-        elif status in ["Confirmed", "Booked"]:
+        elif status in ["Confirmed", "Booked", "Waiting for Doctor"]:
             color = "teal"
-            advice = "Appointment set. Please read details and don't miss your next appointment."
+            advice = "Appointment confirmed! Please check your scheduled timeline in Visits."
         elif status == "Cancelled":
             color = "gray"
             advice = "This appointment has been cancelled."
@@ -88,6 +88,11 @@ async def get_patient_journey(patient_id: str):
             "status": status,
             "symptoms": entry.get("symptoms", "General Checkup"),
             "estimated_time": display_time,
+            "time": entry.get("time", display_time),
+            "doctor_name": entry.get("doctor_name", "Dr. Zulu"),
+            "doctor_id": entry.get("doctor_id"),
+            "schedule": entry.get("schedule"),
+            "score": score,
             "advice": advice,
             "color_code": color,
             "ticket_score": score,
